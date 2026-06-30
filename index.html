@@ -459,6 +459,9 @@ select:focus{outline:none;border-color:var(--blue)}
 .buy-price{font-size:2.6rem;font-weight:900;letter-spacing:-.04em;margin-bottom:4px}
 .buy-price small{font-size:.9rem;font-weight:600;color:var(--muted)}
 .buy-panel .secure{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--muted);margin-top:14px;justify-content:center}
+.buy-custom{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);text-align:center;font-size:.84rem;color:var(--muted)}
+.buy-custom a{color:var(--blue-ink);font-weight:600;text-decoration:none}
+.buy-custom a:hover{text-decoration:underline}
 .buy-panel .secure svg{width:15px;height:15px;color:var(--success)}
 .buy-incl{margin:18px 0;padding:16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:9px}
 .buy-incl li{display:flex;gap:9px;align-items:flex-start;font-size:.86rem;color:var(--text);list-style:none}
@@ -571,6 +574,12 @@ select:focus{outline:none;border-color:var(--blue)}
 [data-theme="dark"] .status-active,[data-theme="dark"] .status-completed{color:#4ade80}
 [data-theme="dark"] .status-inactive,[data-theme="dark"] .status-rejected{color:#f87171}
 [data-theme="dark"] .status-in-progress{color:#fbbf24}
+.prio{font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:999px;text-transform:capitalize}
+.prio-low{background:rgba(120,144,176,.16);color:#64748b}
+.prio-normal{background:rgba(77,163,255,.14);color:var(--blue-ink)}
+.prio-high{background:rgba(245,158,11,.18);color:#b45309}
+.prio-urgent{background:rgba(239,68,68,.16);color:#dc2626}
+[data-theme="dark"] .prio-high{color:#fbbf24}[data-theme="dark"] .prio-urgent{color:#f87171}
 .editor-grid{display:grid;grid-template-columns:1fr 300px;gap:20px}
 .code-area{width:100%;min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:.86rem;line-height:1.6;
   padding:14px;border-radius:12px;border:1px solid var(--line-2);background:var(--bg-2);color:var(--text);resize:vertical}
@@ -644,6 +653,27 @@ select:focus{outline:none;border-color:var(--blue)}
   .reveal{opacity:1!important;transform:none!important}
   .float-card,.t-track,.hero-wave{animation:none!important}
 }
+.setup-wrap{min-height:100vh;display:grid;place-items:center;padding:32px 18px;background:radial-gradient(1200px 600px at 50% -10%,rgba(77,163,255,.14),transparent),var(--bg)}
+.setup-card{max-width:640px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:40px;box-shadow:var(--sh2)}
+.setup-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem;margin-bottom:18px}
+.setup-logo .logo{width:38px;height:38px;display:grid;place-items:center;background:var(--blue);color:#fff;border-radius:11px}
+.setup-card h1{font-size:clamp(1.5rem,3.4vw,2rem);line-height:1.15;margin:0 0 12px}
+.setup-lead{color:var(--muted);font-size:1rem;margin:0 0 22px}
+.setup-steps{margin:0 0 18px;padding-left:22px;display:flex;flex-direction:column;gap:11px}
+.setup-steps li{font-size:.92rem;line-height:1.5}
+.setup-steps code,.setup-note code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:.82em}
+.setup-note{font-size:.88rem;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 22px}
+.setup-actions{display:flex;gap:12px;flex-wrap:wrap}
+.setup-actions .btn{flex:1;min-width:200px;justify-content:center}
+.setup-fine{font-size:.78rem;color:var(--faint);margin:16px 0 0;text-align:center}
+@media(max-width:560px){.setup-card{padding:26px}}
+.admin-banner{display:flex;gap:10px;align-items:center;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:#b45309;border-radius:12px;padding:11px 14px;font-size:.86rem;margin-bottom:18px}
+[data-theme="dark"] .admin-banner{color:#fbbf24}
+.import-card{background:linear-gradient(135deg,rgba(77,163,255,.1),rgba(130,200,255,.08));border:1px solid var(--blue);border-radius:16px;padding:20px;margin-bottom:18px}
+.heatmap{display:grid;grid-template-columns:auto repeat(24,1fr);gap:3px;align-items:center}
+.hm-h{font-size:.6rem;color:var(--faint);text-align:center}
+.hm-day{font-size:.72rem;color:var(--muted);padding-right:8px;text-align:right;white-space:nowrap}
+.hm-cell{aspect-ratio:1;border-radius:3px;background:var(--line);min-height:14px}
 </style>
 </head>
 <body>
@@ -654,7 +684,7 @@ select:focus{outline:none;border-color:var(--blue)}
 <script>
 /* ============================================================================
    PROMPTLAB — Application (single-file, vanilla JS, hash-routed)
-   Data layer abstracts Firebase OR local storage (demo mode default).
+   Data layer: Firebase (production) with an optional offline local preview.
    ============================================================================ */
 "use strict";
 
@@ -673,12 +703,15 @@ const Store=(()=>{
   };
 })();
 
-/* -------------------------- CONFIG --------------------------
-   PASTE YOUR FIREBASE CONFIG HERE to go live. Leave apiKey as the
-   placeholder to keep running in local demo mode. */
+/* ============================================================================
+   ▶ PRODUCTION SETUP — paste your Firebase + Square details below.
+   Until Firebase is connected, the app shows a Setup screen instead of the
+   store, because a real marketplace needs one shared backend that every
+   visitor reads from. Full 5-minute walkthrough in SETUP.md.
+   ============================================================================ */
 const CONFIG={
   firebase:{
-    apiKey:"YOUR_API_KEY",          // <-- replace to enable Firebase
+    apiKey:"YOUR_API_KEY",          // <-- paste your Firebase web config
     authDomain:"YOUR_PROJECT.firebaseapp.com",
     projectId:"YOUR_PROJECT",
     storageBucket:"YOUR_PROJECT.appspot.com",
@@ -687,16 +720,18 @@ const CONFIG={
   },
   /* Square hosted Checkout / Payment Links. Create links in your Square
      Dashboard (Online > Checkout links) and paste here OR per-item in admin.
-     With no backend, this is the secure GitHub-Pages-compatible flow. */
+     With a static front-end this is the secure, PCI-safe payment flow. */
   square:{
     defaultCheckoutUrl:"",          // fallback store/checkout link
-    // Tip: set Square link "after payment" redirect to: <yoursite>/#/success
+    // Tip: set each Square link's "after payment" redirect to: <yoursite>/#/success
   },
-  /* Demo admin gate — used ONLY when Firebase is not configured, so you can
-     test the dashboard. In production, Firebase Auth + Firestore rules govern. */
-  demoAdminPassword:"promptlab"
+  /* Production admin = Firebase Authentication (Email/Password) + an
+     admins/{uid} document. Leave localPassword empty for production.
+     Set it ONLY to unlock the dashboard during offline local preview. */
+  localPassword:""
 };
-const FIREBASE_ENABLED = CONFIG.firebase.apiKey && CONFIG.firebase.apiKey!=="YOUR_API_KEY";
+const FIREBASE_ENABLED = !!(CONFIG.firebase.apiKey && CONFIG.firebase.apiKey!=="YOUR_API_KEY");
+try{window.PROMPTLAB_CONFIG=CONFIG;}catch(e){}
 
 /* -------------------------- ICONS -------------------------- */
 const I={
@@ -1163,6 +1198,26 @@ function track(event,params={}){
   try{if(FIREBASE_ENABLED&&window.gtag)window.gtag("event",event,params);}catch(e){}
   const k="pl_events";const q=Store.json(k,[]);q.push({event,params,t:Date.now()});Store.setJson(k,q.slice(-500));
 }
+function setJsonLd(obj){
+  let s=document.getElementById("dynamic-ld");
+  if(!obj){if(s)s.remove();return;}
+  if(!s){s=document.createElement("script");s.type="application/ld+json";s.id="dynamic-ld";document.head.appendChild(s);}
+  s.textContent=JSON.stringify(obj);
+}
+const DEFAULT_TITLE="PromptLab — Premium AI Prompt Marketplace";
+const DEFAULT_DESC="Buy professionally engineered AI prompts and prompt packs, or request a custom prompt. Tested on ChatGPT, Claude, Gemini and more.";
+function setPageMeta(title,desc){
+  document.title=title||DEFAULT_TITLE;
+  let m=document.querySelector('meta[name="description"]');
+  if(!m){m=document.createElement("meta");m.setAttribute("name","description");document.head.appendChild(m);}
+  m.setAttribute("content",(desc||DEFAULT_DESC).slice(0,300));
+}
+const SITE_URL=()=>location.origin+location.pathname;
+function ldProduct(p){return{"@context":"https://schema.org","@type":"Product",name:p.title,description:p.description||p.title,
+  category:catName(p.categoryId),brand:{"@type":"Brand",name:"PromptLab"},
+  offers:{"@type":"Offer",price:(p.price||0).toFixed(2),priceCurrency:"USD",availability:"https://schema.org/InStock",url:SITE_URL()+"#/prompt/"+p.id}};}
+function ldItemList(items,kind){return{"@context":"https://schema.org","@type":"ItemList",numberOfItems:items.length,
+  itemListElement:items.slice(0,20).map((it,i)=>({"@type":"ListItem",position:i+1,url:SITE_URL()+"#/"+kind+"/"+it.id,name:it.title}))};}
 /* ========================= VIEW: HOME ========================= */
 function renderHome(){
   const c=cfg();
@@ -1172,6 +1227,7 @@ function renderHome(){
   const owners=c.ownerProfiles||[];
   const ts=c.testimonials||[];const tDouble=[...ts,...ts];
   const faqTop=(c.faq||[]).slice(0,5);
+  setJsonLd(ldItemList(previewPrompts,"prompt"));
   view(`
   <section class="hero"><div class="hero-wave"></div><div class="container hero-grid">
     <div class="hero-copy">
@@ -1309,10 +1365,30 @@ function filterControls(){
     <div class="filter-group"><h4>Type</h4>
       <label class="check"><input type="checkbox" class="f-type" value="prompt" ${BS.type.has("prompt")?"checked":""}><span class="ct">Single prompt</span></label>
       <label class="check"><input type="checkbox" class="f-type" value="pack" ${BS.type.has("pack")?"checked":""}><span class="ct">Prompt pack</span></label></div>
+    <div class="filter-group"><h4>Show</h4>
+      <label class="check"><input type="checkbox" class="f-flag" value="featured" ${BS.flags.has("featured")?"checked":""}><span class="ct">Featured only</span></label>
+      <label class="check"><input type="checkbox" class="f-flag" value="free" ${BS.flags.has("free")?"checked":""}><span class="ct">Free</span></label>
+      <label class="check"><input type="checkbox" class="f-flag" value="premium" ${BS.flags.has("premium")?"checked":""}><span class="ct">Premium</span></label></div>
     <button class="btn btn-ghost btn-sm filter-reset" id="resetFilters">Reset filters</button>`;
 }
+const recentSearches=()=>Store.json("pl_recent_search",[]);
+function addRecent(q){q=(q||"").trim();if(q.length<2)return;let r=recentSearches().filter(x=>x.toLowerCase()!==q.toLowerCase());r.unshift(q);Store.setJson("pl_recent_search",r.slice(0,6));}
+function buildSuggest(raw){
+  const box=$("#searchSuggest");if(!box)return;
+  const q=(raw||"").trim().toLowerCase();let items=[];
+  if(!q){items=recentSearches().map(x=>({label:x,cat:"recent",q:x}));}
+  else{
+    items=State.db.getPrompts().filter(p=>p.status==="active"&&p.title.toLowerCase().includes(q)).slice(0,5).map(p=>({label:p.title,cat:catName(p.categoryId),q:p.title}));
+    cats().filter(c=>c.name.toLowerCase().includes(q)).slice(0,2).forEach(c=>items.push({label:c.name,cat:"category",q:c.name}));
+  }
+  if(!items.length){box.classList.add("hide");return;}
+  box.innerHTML=items.map(it=>`<button data-sg="${esc(it.q)}">${icon(it.cat==="recent"?"clock":"search")}<span>${esc(it.label)}</span><span class="ss-cat">${esc(it.cat)}</span></button>`).join("")
+    +(!q&&recentSearches().length?`<button data-sgclear style="color:var(--danger)">${icon("trash")}<span>Clear recent searches</span></button>`:"");
+  box.classList.remove("hide");
+}
+function skeletonCards(n){let s="";for(let i=0;i<n;i++)s+=`<div class="skeleton"><div class="sk-line lg"></div><div class="sk-line"></div><div class="sk-line"></div><div class="sk-line sm"></div></div>`;return s;}
 function renderBrowse(preset){
-  BS={q:"",cat:new Set(preset&&preset.cat?[preset.cat]:[]),diff:new Set(),ai:new Set(),type:new Set(),priceMax:50,sort:"recommended",shown:BATCH};
+  BS={q:"",cat:new Set(preset&&preset.cat?[preset.cat]:[]),diff:new Set(),ai:new Set(),type:new Set(),flags:new Set(),priceMax:50,sort:"recommended",shown:BATCH};
   const heading=preset&&preset.cat?catName(preset.cat):"Browse all prompts";
   const crumb=preset&&preset.cat
     ?`<a href="#/">Home</a><span class="sep">/</span><a href="#/categories">Categories</a><span class="sep">/</span><span class="cur">${esc(catName(preset.cat))}</span>`
@@ -1323,7 +1399,8 @@ function renderBrowse(preset){
     <span class="eyebrow">${preset&&preset.cat?"Category":"Marketplace"}</span>
     <h1 style="font-size:clamp(1.8rem,3.4vw,2.4rem);margin-top:8px">${esc(heading)}</h1></div></div>
   <div class="search-bar-wrap"><div class="container"><div class="search-bar">
-    ${icon("search","s-ico")}<input id="browseSearch" type="search" placeholder="Search prompts by title, tag, or variable…" autocomplete="off"></div></div></div>
+    ${icon("search","s-ico")}<input id="browseSearch" type="search" placeholder="Search prompts by title, tag, or variable…" autocomplete="off">
+    <div class="search-suggest hide" id="searchSuggest"></div></div></div></div>
   <div class="container"><div class="browse-layout">
     <aside class="filters" id="filterPanel">${filterControls()}</aside>
     <div>
@@ -1334,7 +1411,9 @@ function renderBrowse(preset){
           <div class="sort-select"><span class="muted" style="font-size:.84rem">Sort</span>
             <select id="sortSelect">
               <option value="recommended">Recommended</option><option value="newest">Newest</option>
-              <option value="oldest">Oldest</option><option value="price-asc">Price: Low → High</option>
+              <option value="oldest">Oldest</option><option value="updated">Recently updated</option>
+              <option value="alpha">Alphabetical (A–Z)</option>
+              <option value="price-asc">Price: Low → High</option>
               <option value="price-desc">Price: High → Low</option><option value="popular">Most popular</option>
               <option value="engagement">Most purchased</option></select></div></div></div>
       <div class="browse-grid" id="browseGrid"></div>
@@ -1344,13 +1423,23 @@ function renderBrowse(preset){
     <div class="sheet-body" id="sheetFilters"></div>
     <div class="sheet-foot"><button class="btn btn-primary btn-block" id="applySheet">Show results</button></div></div>`);
 
-  $("#browseSearch").addEventListener("input",debounce(e=>{BS.q=e.target.value.trim().toLowerCase();BS.shown=BATCH;applyBrowse();},200));
+  const sInput=$("#browseSearch"),sBox=$("#searchSuggest");
+  sInput.addEventListener("input",debounce(e=>{BS.q=e.target.value.trim().toLowerCase();BS.shown=BATCH;applyBrowse();buildSuggest(e.target.value);},200));
+  sInput.addEventListener("focus",()=>buildSuggest(sInput.value));
+  sInput.addEventListener("blur",()=>setTimeout(()=>sBox.classList.add("hide"),160));
+  sInput.addEventListener("keydown",e=>{if(e.key==="Enter"){addRecent(sInput.value);sBox.classList.add("hide");}});
+  sBox.addEventListener("mousedown",e=>{const b=e.target.closest("button");if(!b)return;e.preventDefault();
+    if(b.hasAttribute("data-sgclear")){Store.del("pl_recent_search");buildSuggest("");return;}
+    const q=b.dataset.sg;sInput.value=q;addRecent(q);BS.q=q.trim().toLowerCase();BS.shown=BATCH;applyBrowse();sBox.classList.add("hide");});
   $("#sortSelect").addEventListener("change",e=>{BS.sort=e.target.value;BS.shown=BATCH;applyBrowse();});
   $("#view").addEventListener("input",browseFilterHandler);
   $("#view").addEventListener("change",browseFilterHandler);
   $("#openFilters").onclick=()=>{$("#sheetFilters").innerHTML=filterControls();$("#filterSheet").classList.add("open");$("#sheetBg").classList.add("open");};
   const closeSheet=()=>{$("#filterSheet").classList.remove("open");$("#sheetBg").classList.remove("open");};
   $("#applySheet").onclick=closeSheet;$("#sheetBg").onclick=closeSheet;
+  setJsonLd(ldItemList(State.db.getPrompts().filter(p=>p.status==="active"),"prompt"));
+  if(preset&&preset.cat){const cObj=allCats().find(c=>c.id===preset.cat);
+    if(cObj)setPageMeta(cObj.seoTitle||`${cObj.name} prompts — PromptLab`,cObj.seoDescription||cObj.description);}
   applyBrowse();
 }
 function browseFilterHandler(e){
@@ -1359,8 +1448,9 @@ function browseFilterHandler(e){
   else if(t.classList.contains("f-diff")){toggle(BS.diff,t.value,t.checked);changed=true;}
   else if(t.classList.contains("f-ai")){toggle(BS.ai,t.value,t.checked);changed=true;}
   else if(t.classList.contains("f-type")){toggle(BS.type,t.value,t.checked);changed=true;}
+  else if(t.classList.contains("f-flag")){toggle(BS.flags,t.value,t.checked);changed=true;}
   else if(t.classList.contains("f-price")){BS.priceMax=+t.value;$$(".f-price-lbl").forEach(l=>l.textContent=money(BS.priceMax));changed=true;}
-  else if(t.id==="resetFilters"){BS.cat.clear();BS.diff.clear();BS.ai.clear();BS.type.clear();BS.priceMax=50;BS.q="";const s=$("#browseSearch");if(s)s.value="";changed=true;}
+  else if(t.id==="resetFilters"){BS.cat.clear();BS.diff.clear();BS.ai.clear();BS.type.clear();BS.flags.clear();BS.priceMax=50;BS.q="";const s=$("#browseSearch");if(s)s.value="";changed=true;}
   if(changed){BS.shown=BATCH;applyBrowse();syncFilterDom();}
 }
 function toggle(set,v,on){on?set.add(v):set.delete(v);}
@@ -1369,6 +1459,7 @@ function syncFilterDom(){
   $$(".f-diff").forEach(c=>c.checked=BS.diff.has(c.value));
   $$(".f-ai").forEach(c=>c.checked=BS.ai.has(c.value));
   $$(".f-type").forEach(c=>c.checked=BS.type.has(c.value));
+  $$(".f-flag").forEach(c=>c.checked=BS.flags.has(c.value));
   $$(".f-price").forEach(c=>c.value=BS.priceMax);
 }
 function browseItems(){
@@ -1385,6 +1476,9 @@ function browseItems(){
   items=items.filter(it=>{
     if(BS.cat.size&&!BS.cat.has(it.categoryId))return false;
     if(it.price>BS.priceMax)return false;
+    if(BS.flags.has("featured")&&!it.featured)return false;
+    if(BS.flags.has("free")&&!BS.flags.has("premium")&&it.price!==0)return false;
+    if(BS.flags.has("premium")&&!BS.flags.has("free")&&it.price<=0)return false;
     if(it._kind==="prompt"){
       if(BS.diff.size&&!BS.diff.has(it.difficulty))return false;
       if(BS.ai.size&&!(it.aiCompatibility||[]).some(a=>BS.ai.has(a)||(a!=="ChatGPT"&&a!=="Claude"&&a!=="Gemini"&&BS.ai.has("Other"))))return false;
@@ -1405,6 +1499,8 @@ function browseItems(){
   switch(BS.sort){
     case"newest":items.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));break;
     case"oldest":items.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));break;
+    case"updated":items.sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));break;
+    case"alpha":items.sort((a,b)=>a.title.localeCompare(b.title));break;
     case"price-asc":items.sort((a,b)=>a.price-b.price);break;
     case"price-desc":items.sort((a,b)=>b.price-a.price);break;
     case"popular":items.sort((a,b)=>(b.popularityScore||0)-(a.popularityScore||0));break;
@@ -1424,12 +1520,13 @@ function applyBrowse(){
       <button class="btn btn-secondary" id="resetFilters">Reset filters</button></div>`;return;
   }
   const slice=all.slice(0,BS.shown);
+  const more=BS.shown<all.length;
   grid.innerHTML=slice.map(it=>it._kind==="pack"?packCard(it):promptCard(it)).join("")
-    +(BS.shown<all.length?`<div class="load-more-sentinel" id="moreSentinel"><div class="spinner"></div></div>`:"");
+    +(more?skeletonCards(Math.min(3,all.length-BS.shown))+`<div class="load-more-sentinel" id="moreSentinel" style="height:1px;padding:0"></div>`:"");
   observeReveals();
   const sentinel=$("#moreSentinel");
   if(sentinel){
-    _browseIO=new IntersectionObserver(es=>{if(es[0].isIntersecting){BS.shown+=BATCH;applyBrowse();}},{rootMargin:"300px"});
+    _browseIO=new IntersectionObserver(es=>{if(es[0].isIntersecting){BS.shown+=BATCH;applyBrowse();}},{rootMargin:"400px"});
     _browseIO.observe(sentinel);
   }
 }
@@ -1514,6 +1611,7 @@ function renderPrompt(id){
   const p=promptById(id);
   if(!p){renderNotFound("That prompt is no longer available.");return;}
   track("prompt_view",{id:p.id});
+  setJsonLd(ldProduct(p));setPageMeta(`${p.title} — PromptLab`,p.description);
   const vars=parseVars(p.promptText);
   const related=relatedPrompts(p);
   view(`<div class="container"><div class="crumbs">
@@ -1529,14 +1627,15 @@ function renderPrompt(id){
       <div class="viewer">
         <div class="viewer-head"><span class="vh-title">${icon("sparkles")} Prompt template</span>
           <button class="btn btn-primary btn-sm" id="copyBtn">${icon("copy")} Copy prompt</button></div>
-        <div class="viewer-body" id="promptViewer">${highlightPrompt(p.promptText,{})}</div></div>
+        <div class="viewer-body" id="promptViewer">${highlightPrompt(p.promptText,Object.fromEntries(Object.entries(p.variableMeta||{}).filter(([k,m])=>m.default).map(([k,m])=>[k,m.default])))}</div></div>
 
       ${vars.length?`<div class="var-engine">
         <div class="var-engine-head"><h3>${icon("bolt")} Customize your prompt</h3>
           <button class="toggle on" id="liveToggle"><span class="tg"></span> Live preview</button></div>
         <p class="muted" style="font-size:.86rem;margin:6px 0 0">Fill in the fields below — your values are injected into the prompt and the preview updates instantly.</p>
-        <div class="var-fields" id="varFields">${vars.map(v=>`<div class="field"><label>${esc(v)}</label>
-          <input class="v-input" data-key="${esc(v.toLowerCase())}" placeholder="Enter ${esc(v.toLowerCase())}…"></div>`).join("")}</div>
+        <div class="var-fields" id="varFields">${vars.map(v=>{const m=(p.variableMeta||{})[v.toLowerCase()]||{};
+          return `<div class="field"><label>${esc(m.label||v)} ${m.required?'<span class="req">*</span>':''}</label>
+          <input class="v-input" data-key="${esc(v.toLowerCase())}" value="${esc(m.default||"")}" ${m.required?'data-req="1"':""} placeholder="${esc(m.example||("Enter "+v.toLowerCase()+"…"))}"></div>`;}).join("")}</div>
       </div>`:""}
 
       ${p.previewOutput?`<div class="var-engine"><h3 style="margin-bottom:12px">${icon("chart")} Example output</h3>
@@ -1552,6 +1651,7 @@ function renderPrompt(id){
         <li>${icon("check")} Lifetime access &amp; future updates</li></ul></div>
       <button class="btn btn-primary btn-block btn-lg" data-buy="${p.id}">${icon("bolt")} Buy Now</button>
       <div class="secure">${icon("shield")} Secure checkout via Square</div>
+      <div class="buy-custom">Need something more specific? <a href="#/custom">Request a custom prompt →</a></div>
     </div></div>
   </div></div>
   ${related.length?`<section class="related"><div class="container">
@@ -1800,7 +1900,7 @@ function router(){
   const [path,queryStr]=raw.split("?");
   const seg=path.split("/").filter(Boolean);
   const q=new URLSearchParams(queryStr||"");
-  State.route=path;closeModal();
+  State.route=path;closeModal();setJsonLd(null);setPageMeta(null);
   const a=seg[0]||"";
   try{
     if(a==="")renderHome();
@@ -1839,10 +1939,10 @@ function openAdminAuth(){
     <div style="text-align:center;margin-bottom:10px"><div class="cat-ico" style="margin:0 auto 12px;width:50px;height:50px">${icon("lock")}</div>
       <h3>Admin access</h3><p class="muted" style="font-size:.86rem">Authorized owners only.</p></div>
     <div id="authErr" class="hide"><p style="color:var(--danger);font-size:.84rem;text-align:center;margin:0 0 10px">Incorrect credentials. Try again.</p></div>
-    ${fb?`<div class="form-field"><label>Email</label><input id="adEmail" type="email" placeholder="owner@promptlab.io"></div>`:""}
+    ${fb?`<div class="form-field"><label>Email</label><input id="adEmail" type="email" placeholder="owner@yourdomain.com"></div>`:""}
     <div class="form-field"><label>Password</label><input id="adPass" type="password" placeholder="••••••••"></div>
     <button class="btn btn-primary btn-block btn-lg" id="adLogin">Unlock dashboard</button>
-    ${fb?"":`<p class="muted center" style="font-size:.76rem;margin:12px 0 0">Demo mode — password set in CONFIG.demoAdminPassword.</p>`}`);
+    ${fb?`<p class="muted center" style="font-size:.76rem;margin:12px 0 0">${icon("shield")} Secured by Firebase Authentication.</p>`:`<p class="muted center" style="font-size:.76rem;margin:12px 0 0">Local preview — set <code>CONFIG.localPassword</code> to enable, or connect Firebase for production auth.</p>`}`);
   const pass=$("#adPass");setTimeout(()=>pass&&pass.focus(),60);
   pass.addEventListener("keydown",e=>{if(e.key==="Enter")$("#adLogin").click();});
   $("#adLogin").onclick=adminLogin;
@@ -1857,11 +1957,12 @@ async function adminLogin(){
       const cred=await State.db._au.signInWithEmailAndPassword(State.db._auth,email,pass);
       const snap=await State.db._fs.getDoc(State.db._fs.doc(State.db._db,"admins",cred.user.uid));
       if(!snap.exists()){await State.db._au.signOut(State.db._auth);throw new Error("no role");}
-      State.admin={name:snap.data().name||email,role:snap.data().role||"owner1",email};
+      State.admin={name:snap.data().name||email,role:snap.data().role||"owner1",email,loginAt:Date.now()};
       closeModal();location.hash="#/admin";
     }catch(e){btn.disabled=false;btn.textContent="Unlock dashboard";fail();}
   }else{
-    if(pass===CONFIG.demoAdminPassword){State.admin={name:"Owner",role:"owner1",email:cfg().businessEmail};closeModal();location.hash="#/admin";toast("Welcome back, owner.","success");}
+    if(!CONFIG.localPassword){const e=$("#authErr");if(e){e.querySelector("p").textContent="Local admin is disabled. Connect Firebase for production, or set CONFIG.localPassword for local preview.";e.classList.remove("hide");}return;}
+    if(pass===CONFIG.localPassword){State.admin={name:"Owner",role:"owner1",email:cfg().businessEmail,loginAt:Date.now()};closeModal();location.hash="#/admin";toast("Welcome back, owner.","success");}
     else fail();
   }
 }
@@ -1879,6 +1980,22 @@ function renderAdminRoute(){
 /* ========================= ADMIN: SHELL ========================= */
 const AD={section:"overview"};
 let _adUnsub=null;
+let SESSION_MIN=30,_idleTimer=null,_idleBound=false;
+function resetIdle(){
+  clearTimeout(_idleTimer);
+  if(!State.admin)return;
+  _idleTimer=setTimeout(()=>{
+    if(!State.admin)return;
+    State.admin=null;if(_adUnsub){_adUnsub();_adUnsub=null;}
+    if(FIREBASE_ENABLED){try{State.db._au.signOut(State.db._auth);}catch(e){}}
+    toast("Session timed out — logged out for your security.","info");location.hash="#/";
+  },SESSION_MIN*60*1000);
+}
+function bindIdle(){
+  if(_idleBound)return;_idleBound=true;
+  const t=throttle(resetIdle,5000);
+  ["mousemove","keydown","click","touchstart","scroll"].forEach(ev=>document.addEventListener(ev,()=>{if(State.admin)t();},{passive:true}));
+}
 function renderAdmin(){
   document.body.style.overflow="";
   const nav=(id,ic,label)=>`<button class="admin-nav${AD.section===id?" active":""}" data-sec="${id}">${icon(ic)} ${label}</button>`;
@@ -1887,15 +2004,16 @@ function renderAdmin(){
       <div class="as-brand"><span class="logo" style="width:30px;height:30px">${icon("sparkles")}</span> Admin</div>
       ${nav("overview","grid","Overview")}${nav("prompts","sparkles","Prompts")}${nav("packs","box","Packs")}
       ${nav("categories","tag","Categories")}${nav("requests","mail","Custom Requests")}
-      ${nav("config","settings","Site Config")}${nav("analytics","chart","Analytics")}
+      ${nav("config","settings","Site Config")}${nav("analytics","chart","Analytics")}${nav("settings","lock","Settings")}
       <button class="admin-nav logout" id="adLogout">${icon("logout")} Logout</button>
     </aside><div class="admin-main" id="adminMain"></div></div>`;
   $$(".admin-nav[data-sec]").forEach(b=>b.onclick=()=>{AD.section=b.dataset.sec;renderAdmin();});
-  $("#adLogout").onclick=()=>{State.admin=null;if(_adUnsub){_adUnsub();_adUnsub=null;}
+  $("#adLogout").onclick=()=>{State.admin=null;if(_adUnsub){_adUnsub();_adUnsub=null;}clearTimeout(_idleTimer);
     if(FIREBASE_ENABLED){try{State.db._au.signOut(State.db._auth);}catch(e){}}toast("Logged out.","info");location.hash="#/";};
   renderAdminSection();
   if(_adUnsub)_adUnsub();
   _adUnsub=State.db.onChange(debounce(()=>{if((State.route||"").startsWith("admin"))renderAdminSection();},120));
+  bindIdle();resetIdle();
   window.scrollTo(0,0);
 }
 function adminTop(title,actions=""){
@@ -1913,6 +2031,7 @@ function renderAdminSection(){
     case"requests":m.innerHTML=adminRequests();wireRequests();break;
     case"config":m.innerHTML=adminConfig();wireConfig();break;
     case"analytics":m.innerHTML=adminAnalytics();break;
+    case"settings":m.innerHTML=adminSettings();wireSettings();break;
   }
 }
 
@@ -1929,6 +2048,11 @@ function adminOverview(){
     ...purchases.map(p=>({t:p.createdAt,h:`Purchase: <b>${esc((promptById(p.itemId)||packById(p.itemId)||{}).title||p.itemId)}</b> · ${money(p.amount)} (${esc(p.paymentStatus)})`}))]
     .sort((a,b)=>b.t-a.t).slice(0,8);
   return `${adminTop("Overview")}
+    ${FIREBASE_ENABLED?"":`<div class="admin-banner">${icon("bolt")} Local preview — changes live in this browser only. Add your Firebase config in <code>index.html</code> to go live for real visitors.</div>`}
+    ${(prompts.length===0&&packs.length===0)?`<div class="import-card"><div class="row sp-between" style="align-items:start;flex-wrap:wrap;gap:12px">
+      <div><h3 style="margin:0 0 6px">${icon("rocket")} Your catalog is empty</h3>
+        <p class="muted" style="font-size:.9rem;margin:0;max-width:520px">Import a starter catalog — ${SEED_PROMPTS.length} prompts, ${SEED_PACKS.length} packs and ${SEED_CATEGORIES.length} categories you can edit or delete — or start from scratch with “Create prompt”.</p></div>
+      <button class="btn btn-primary" id="importStarter">${icon("plus")} Import starter content</button></div></div>`:""}
     <div class="metric-grid">
       ${metric("Total prompts",prompts.length,"sparkles")}
       ${metric("Total packs",packs.length,"box")}
@@ -1941,7 +2065,19 @@ function adminOverview(){
         <span style="color:var(--faint);font-size:.78rem;min-width:64px">${timeAgo(a.t)}</span><span style="font-size:.88rem">${a.h}</span></div>`).join("")}</div>`
         :`<div class="admin-empty">No activity yet. Purchases and custom requests will appear here in real time.</div>`}</div>`;
 }
-function wireOverview(){}
+function wireOverview(){
+  const b=$("#importStarter");if(b)b.onclick=async()=>{
+    b.disabled=true;b.innerHTML=`${icon("bolt")} Importing…`;
+    try{await importStarterContent();toast("Starter catalog imported.","success");}
+    catch(e){console.error(e);toast("Import failed — check your Firestore rules and that you're signed in as admin.","error");b.disabled=false;b.innerHTML=`${icon("plus")} Import starter content`;return;}
+    renderAdminSection();
+  };
+}
+async function importStarterContent(){
+  for(const c of SEED_CATEGORIES)await State.db.saveCategory(clone(c));
+  for(const p of SEED_PROMPTS)await State.db.savePrompt(clone(p));
+  for(const k of SEED_PACKS)await State.db.savePack(clone(k));
+}
 
 /* ---------- PROMPTS ---------- */
 function adminPrompts(){
@@ -1970,7 +2106,7 @@ function wirePrompts(){
 }
 const AI_LIST=["ChatGPT","Claude","Gemini","Perplexity","Other"];
 function openPromptEditor(p){
-  const isNew=!p;p=p||{id:"",title:"",description:"",categoryId:(cats()[0]||{}).id||"",tags:[],price:cfg().pricingDefaults.prompt,difficulty:"medium",aiCompatibility:["ChatGPT","Claude","Gemini"],promptText:"",previewOutput:"",featured:false,status:"active",checkoutUrl:"",popularityScore:50,purchaseCount:0};
+  const isNew=!p;p=p||{id:"",title:"",description:"",categoryId:(cats()[0]||{}).id||"",tags:[],price:cfg().pricingDefaults.prompt,difficulty:"medium",aiCompatibility:["ChatGPT","Claude","Gemini"],promptText:"",previewOutput:"",featured:false,status:"active",checkoutUrl:"",variableMeta:{},popularityScore:50,purchaseCount:0};
   const catOpts=allCats().map(c=>`<option value="${c.id}" ${p.categoryId===c.id?"selected":""}>${esc(c.name)}</option>`).join("");
   openModal(`<button class="icon-btn m-close" data-close>${icon("close")}</button>
     <h3>${isNew?"Create prompt":"Edit prompt"}</h3>
@@ -1981,9 +2117,7 @@ function openPromptEditor(p){
     <div class="editor-grid">
       <div><div class="form-field"><label>Prompt text — use [Variables] in brackets</label>
         <textarea id="e_text" class="code-area" placeholder="Write your prompt. Use [Business], [Audience]…">${esc(p.promptText)}</textarea></div></div>
-      <div><div class="detected-vars"><div style="font-weight:700;margin-bottom:8px">${icon("bolt")} Detected variables</div><div id="e_vars"></div></div>
-        <div class="var-engine" style="padding:14px;margin-top:14px"><div style="font-weight:700;margin-bottom:8px;font-size:.84rem">Live preview</div>
-          <div id="e_preview" class="output-box" style="max-height:160px"></div></div></div></div>
+      <div id="e_rightcol"></div></div>
     <div class="form-row">
       <div class="form-field"><label>Price ($)</label><input id="e_price" type="number" min="0" step="0.5" value="${p.price}"></div>
       <div class="form-field"><label>Difficulty</label><select id="e_diff">${["easy","medium","hard"].map(d=>`<option ${p.difficulty===d?"selected":""}>${d}</option>`).join("")}</select></div></div>
@@ -1998,19 +2132,63 @@ function openPromptEditor(p){
     <div class="row" style="margin-top:18px;gap:10px"><button class="btn btn-secondary btn-block" data-close>Cancel</button>
       <button class="btn btn-primary btn-block" id="e_save">${icon("check")} Save prompt</button></div>`,true);
 
-  const text=$("#e_text"),vbox=$("#e_vars"),prev=$("#e_preview");
-  const refresh=()=>{const vars=parseVars(text.value);
-    vbox.innerHTML=vars.length?vars.map(v=>`<span class="dv-chip">[${esc(v)}]</span>`).join(""):`<span class="muted" style="font-size:.8rem">None detected yet.</span>`;
-    prev.innerHTML=esc(text.value||"Your prompt preview appears here…").replace(/\[([^\]\n]{1,40})\]/g,'<span class="vv">[$1]</span>');};
-  text.addEventListener("input",refresh);refresh();
+  const text=$("#e_text"),rc=$("#e_rightcol");
+  let meta={...(p.variableMeta||{})};
+  const exVals=()=>{const o={};Object.keys(meta).forEach(k=>{const v=meta[k].example||meta[k].default;if(v)o[k]=v;});return o;};
+  function buildMode(){
+    rc.innerHTML=`<div class="detected-vars"><div class="row sp-between" style="margin-bottom:8px">
+        <span style="font-weight:700">${icon("bolt")} Variable builder</span>
+        <button class="btn btn-secondary btn-sm" id="e_test">${icon("rocket")} Test prompt</button></div>
+      <div id="e_vbuild"></div></div>
+      <div class="var-engine" style="padding:14px;margin-top:14px"><div style="font-weight:700;margin-bottom:8px;font-size:.84rem">Live preview</div>
+        <div id="e_preview" class="output-box" style="max-height:150px"></div></div>`;
+    renderVarRows();updatePrev();
+    $("#e_test").onclick=testMode;
+  }
+  function renderVarRows(){
+    const vars=parseVars(text.value);const box=$("#e_vbuild");
+    box.innerHTML=vars.length?vars.map(v=>{const k=v.toLowerCase();const m=meta[k]||(meta[k]={label:v,default:"",example:"",required:false});
+      return `<div class="vb-row" data-k="${esc(k)}" style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:.8rem;margin-bottom:6px;color:var(--blue-ink)">[${esc(v)}]</div>
+        <div class="form-row" style="gap:8px">
+          <input class="vb-def" placeholder="Default value" value="${esc(m.default||"")}" style="font-size:.8rem;padding:8px 10px">
+          <input class="vb-ex" placeholder="Example value" value="${esc(m.example||"")}" style="font-size:.8rem;padding:8px 10px"></div>
+        <label class="check" style="padding:4px 0 0;font-size:.78rem"><input type="checkbox" class="vb-req" ${m.required?"checked":""}> Required field</label></div>`;}).join("")
+      :`<span class="muted" style="font-size:.8rem">Add [Variables] in the prompt to configure them here.</span>`;
+    $$(".vb-row",box).forEach(row=>{const k=row.dataset.k;
+      $(".vb-def",row).addEventListener("input",e=>{meta[k].default=e.target.value;updatePrev();});
+      $(".vb-ex",row).addEventListener("input",e=>{meta[k].example=e.target.value;updatePrev();});
+      $(".vb-req",row).addEventListener("change",e=>{meta[k].required=e.target.checked;});});
+  }
+  function updatePrev(){const pv=$("#e_preview");if(pv)pv.innerHTML=esc(applyVars(text.value||"Your prompt preview appears here…",exVals())).replace(/\[([^\]\n]{1,40})\]/g,'<span class="vv">[$1]</span>');}
+  function testMode(){
+    const vars=parseVars(text.value);
+    rc.innerHTML=`<div class="detected-vars"><div class="row sp-between" style="margin-bottom:10px">
+        <span style="font-weight:700">${icon("rocket")} Test mode — customer view</span>
+        <button class="btn btn-ghost btn-sm" id="e_back">${icon("arrow")} Back</button></div>
+      ${vars.length?`<div class="var-fields" style="grid-template-columns:1fr">${vars.map(v=>{const k=v.toLowerCase();const m=meta[k]||{};
+        return `<div class="field"><label>${esc(m.label||v)} ${m.required?'<span class="req">*</span>':''}</label>
+          <input class="tp-input" data-key="${esc(k)}" value="${esc(m.default||"")}" placeholder="${esc(m.example||("Enter "+v.toLowerCase()))}" style="font-size:.84rem"></div>`;}).join("")}</div>`:`<p class="muted" style="font-size:.82rem">No variables — this prompt is used as-is.</p>`}</div>
+      <div class="viewer" style="margin-top:14px;box-shadow:none"><div class="viewer-head"><span class="vh-title">${icon("sparkles")} Result</span>
+        <button class="btn btn-primary btn-sm" id="tpCopy">${icon("copy")} Copy</button></div>
+        <div class="viewer-body" id="tpOut" style="max-height:200px;overflow:auto"></div></div>`;
+    const out=$("#tpOut");const vals=()=>{const o={};$$(".tp-input").forEach(i=>{if(i.value.trim())o[i.dataset.key]=i.value.trim();});return o;};
+    const upd=()=>out.innerHTML=highlightPrompt(text.value,vals());
+    $$(".tp-input").forEach(i=>i.addEventListener("input",upd));upd();
+    $("#e_back").onclick=buildMode;
+    $("#tpCopy").onclick=async()=>{try{await navigator.clipboard.writeText(applyVars(text.value,vals()));}catch(e){}toast("Copied");};
+  }
+  text.addEventListener("input",()=>{if($("#e_vbuild")){renderVarRows();updatePrev();}});
+  buildMode();
   const feat=$("#e_feat"),status=$("#e_status");
   feat.onclick=()=>feat.classList.toggle("on");status.onclick=()=>status.classList.toggle("on");
   $("#e_save").onclick=async()=>{
     const title=$("#e_title").value.trim(),txt=text.value.trim();
     if(!title||!txt){toast("Title and prompt text are required.","error");return;}
+    const liveVars=parseVars(txt).map(v=>v.toLowerCase());const cleanMeta={};liveVars.forEach(k=>{if(meta[k])cleanMeta[k]=meta[k];});
     const obj={...p,title,description:$("#e_desc").value.trim(),categoryId:$("#e_cat").value,promptText:txt,
       price:+$("#e_price").value||0,difficulty:$("#e_diff").value,tags:$("#e_tags").value.split(",").map(s=>s.trim()).filter(Boolean),
-      aiCompatibility:$$(".e_ai").filter(c=>c.checked).map(c=>c.value),previewOutput:$("#e_out").value.trim(),
+      aiCompatibility:$$(".e_ai").filter(c=>c.checked).map(c=>c.value),previewOutput:$("#e_out").value.trim(),variableMeta:cleanMeta,
       checkoutUrl:$("#e_url").value.trim(),featured:feat.classList.contains("on"),status:status.classList.contains("on")?"active":"inactive"};
     await State.db.savePrompt(obj);closeModal();toast(isNew?"Prompt created":"Prompt saved","success");renderAdminSection();
   };
@@ -2099,7 +2277,7 @@ function wireCategories(){
   $$("[data-cvis]").forEach(b=>b.onclick=async()=>{const c=allCats().find(x=>x.id===b.dataset.cvis);c.visible=!c.visible;await State.db.saveCategory(c);toast(c.visible?"Visible":"Hidden");});
 }
 function openCatEditor(c){
-  const isNew=!c;c=c||{id:"",name:"",description:"",icon:"sparkles",order:(allCats().length+1),visible:true};
+  const isNew=!c;c=c||{id:"",name:"",description:"",icon:"sparkles",order:(allCats().length+1),visible:true,seoTitle:"",seoDescription:""};
   openModal(`<button class="icon-btn m-close" data-close>${icon("close")}</button>
     <h3>${isNew?"Create category":"Edit category"}</h3>
     <div class="form-field" style="margin-top:16px"><label>Name</label><input id="c_name" value="${esc(c.name)}"></div>
@@ -2108,13 +2286,17 @@ function openCatEditor(c){
       <div class="form-field"><label>Visible</label><div><label class="toggle ${c.visible?"on":""}" id="c_vis" style="margin-top:8px"><span class="tg"></span> Show in nav</label></div></div></div>
     <div class="form-field"><label>Icon</label><div class="row wrap" id="c_icons" style="gap:8px">
       ${ICON_CHOICES.map(ic=>`<button class="icon-btn c-ic ${c.icon===ic?"":""}" data-ic="${ic}" style="${c.icon===ic?"border-color:var(--blue);color:var(--blue-ink)":""}">${icon(ic)}</button>`).join("")}</div></div>
+    <div style="border-top:1px solid var(--line);margin:18px 0 8px;padding-top:14px;font-weight:700;font-size:.85rem;color:var(--muted)">${icon("search")} SEO metadata</div>
+    <div class="form-field"><label>SEO title <span class="muted">(browser tab + search results)</span></label><input id="c_seoTitle" value="${esc(c.seoTitle||"")}" placeholder="${esc(c.name||"Category")} prompts — PromptLab"></div>
+    <div class="form-field"><label>Meta description <span class="muted">(~155 chars)</span></label><textarea id="c_seoDesc" maxlength="200" style="min-height:60px" placeholder="Short search-friendly description of this category…">${esc(c.seoDescription||"")}</textarea></div>
     <div class="row" style="margin-top:18px;gap:10px"><button class="btn btn-secondary btn-block" data-close>Cancel</button>
       <button class="btn btn-primary btn-block" id="c_save">${icon("check")} Save category</button></div>`);
   let chosen=c.icon;const vis=$("#c_vis");vis.onclick=()=>vis.classList.toggle("on");
   $$(".c-ic").forEach(b=>b.onclick=()=>{chosen=b.dataset.ic;$$(".c-ic").forEach(x=>x.style.cssText="");b.style.cssText="border-color:var(--blue);color:var(--blue-ink)";});
   $("#c_save").onclick=async()=>{
     const name=$("#c_name").value.trim();if(!name){toast("Category needs a name.","error");return;}
-    const obj={...c,name,description:$("#c_desc").value.trim(),order:+$("#c_order").value||0,icon:chosen,visible:vis.classList.contains("on")};
+    const obj={...c,name,description:$("#c_desc").value.trim(),order:+$("#c_order").value||0,icon:chosen,visible:vis.classList.contains("on"),
+      seoTitle:$("#c_seoTitle").value.trim(),seoDescription:$("#c_seoDesc").value.trim()};
     if(isNew)obj.id=slug(name)||uid("cat");
     await State.db.saveCategory(obj);closeModal();toast(isNew?"Category created":"Category saved");renderAdminSection();
   };
@@ -2126,9 +2308,10 @@ function adminRequests(){
   const reqs=State.db.getRequests();
   return `${adminTop("Custom Requests")}
     <div class="admin-card"><div style="overflow-x:auto"><table class="tbl"><thead><tr>
-      <th>Name</th><th>Industry</th><th>Type</th><th>Status</th><th>Assigned</th><th>Date</th><th></th></tr></thead><tbody>
+      <th>Name</th><th>Industry</th><th>Type</th><th>Priority</th><th>Status</th><th>Assigned</th><th>Date</th><th></th></tr></thead><tbody>
       ${reqs.map(r=>`<tr><td><b>${esc(r.name)}</b><div class="muted" style="font-size:.74rem">${esc(r.email)}</div></td>
         <td>${esc(r.industry||"—")}</td><td>${esc(r.projectType||"—")}</td>
+        <td><span class="prio prio-${r.priority||"normal"}">${esc(r.priority||"normal")}</span></td>
         <td><span class="status-pill status-${r.status}">${esc(r.status)}</span></td>
         <td>${esc(r.assignedTo||"—")}</td><td class="muted" style="font-size:.78rem">${new Date(r.createdAt).toLocaleDateString()}</td>
         <td><button class="mini-btn" data-req="${r.id}" title="Open">${icon("arrow")}</button></td></tr>`).join("")}
@@ -2144,6 +2327,7 @@ function openRequest(r){
       <div style="margin-top:6px"><b>Platform:</b> ${esc(r.aiPlatform||"—")} · <b>Tone:</b> ${esc(r.tone||"—")} · <b>Budget:</b> ${esc(r.budget||"—")}${r.deadline?` · <b>Deadline:</b> ${esc(r.deadline)}`:""}</div>
       <div style="margin-top:8px"><b>Outcome:</b><br>${esc(r.description||"")}</div></div>
     <div class="form-row"><div class="form-field"><label>Status</label><select id="r_status">${REQ_STATUS.map(s=>`<option ${r.status===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div class="form-field"><label>Priority</label><select id="r_priority">${["low","normal","high","urgent"].map(s=>`<option ${(r.priority||"normal")===s?"selected":""}>${s}</option>`).join("")}</select></div>
       <div class="form-field"><label>Assigned to</label><select id="r_assign"><option value="">Unassigned</option>
         <option ${r.assignedTo==="owner1"?"selected":""}>owner1</option><option ${r.assignedTo==="owner2"?"selected":""}>owner2</option></select></div></div>
     <div class="form-field"><label>Internal notes</label><textarea id="r_notes" style="min-height:60px">${esc(r.notes||"")}</textarea></div>
@@ -2151,7 +2335,7 @@ function openRequest(r){
     <div class="row" style="margin-top:16px;gap:10px"><button class="btn btn-secondary btn-block" data-close>Close</button>
       <button class="btn btn-primary btn-block" id="r_save">${icon("check")} Save request</button></div>`,true);
   $("#r_save").onclick=async()=>{
-    const obj={...r,status:$("#r_status").value,assignedTo:$("#r_assign").value,notes:$("#r_notes").value,responsePrompt:$("#r_resp").value};
+    const obj={...r,status:$("#r_status").value,priority:$("#r_priority").value,assignedTo:$("#r_assign").value,notes:$("#r_notes").value,responsePrompt:$("#r_resp").value};
     await State.db.updateRequest(obj);closeModal();toast("Request updated");renderAdminSection();
   };
 }
@@ -2182,24 +2366,32 @@ function adminConfig(){
         <div class="form-field"><label>Role</label><input class="cf_orole" value="${esc((o[i]||{}).role||"")}"></div>
         <div class="form-field"><label>Email</label><input class="cf_omail" value="${esc((o[i]||{}).email||"")}"></div></div>`).join("")}</div>
 
-    <div class="admin-card"><div class="admin-card-head"><h3>Social links</h3></div>
-      <div class="form-row">${SOCIALS.map(s=>`<div class="form-field"><label style="text-transform:capitalize">${s}</label><input class="cf_soc" data-soc="${s}" value="${esc((c.socialLinks||{})[s]||"")}" placeholder="https://..."></div>`).join("")}</div></div>
+    <div class="admin-card"><div class="admin-card-head"><h3>Social links</h3>
+      <button class="btn btn-secondary btn-sm" id="addSocial">${icon("plus")} Add platform</button></div>
+      <div id="socialRows">${Object.keys({...Object.fromEntries(SOCIALS.map(s=>[s,""])),...(c.socialLinks||{})}).map(s=>socialRow(s,(c.socialLinks||{})[s]||"")).join("")}</div>
+      <p class="muted" style="font-size:.78rem;margin:10px 0 0">Add any platform (Discord, GitHub, Threads…) — custom names show a generic icon on the site.</p></div>
 
     <div class="admin-card"><div class="admin-card-head"><h3>Legal documents</h3>
       <button class="btn btn-secondary btn-sm" id="editLegal">${icon("edit")} Edit legal text</button></div>
       <p class="muted" style="font-size:.86rem;margin:0">Edit Privacy, Terms, Refunds and other policies. Changes publish instantly to the public pages.</p></div>
 
-    ${!FIREBASE_ENABLED?`<div class="admin-card"><div class="admin-card-head"><h3>Demo data</h3></div>
-      <p class="muted" style="font-size:.86rem">Running in local demo mode. Reset restores the original sample prompts, packs, and settings.</p>
-      <button class="btn btn-danger btn-sm mt-s" id="resetData">${icon("trash")} Reset demo data</button></div>`:""}`;
+    ${!FIREBASE_ENABLED?`<div class="admin-card"><div class="admin-card-head"><h3>Local preview content</h3></div>
+      <p class="muted" style="font-size:.86rem">You're in local preview (this browser only). Reset restores the starter catalog so you can explore the dashboard.</p>
+      <button class="btn btn-danger btn-sm mt-s" id="resetData">${icon("trash")} Reset local content</button></div>`:""}`;
 }
+function socialRow(name,url){return `<div class="soc-row row" style="gap:8px;margin-bottom:8px;align-items:center">
+  <input class="cf_sname" value="${esc(name)}" placeholder="platform" style="max-width:160px;text-transform:capitalize">
+  <input class="cf_surl" value="${esc(url)}" placeholder="https://..." style="flex:1">
+  <button class="mini-btn danger" data-soc-rm title="Remove">${icon("trash")}</button></div>`;}
 function wireConfig(){
   $("#cfgSave").onclick=saveConfigForm;
   const el=$("#editLegal");if(el)el.onclick=openLegalEditor;
+  const addS=$("#addSocial");if(addS)addS.onclick=()=>$("#socialRows").insertAdjacentHTML("beforeend",socialRow("",""));
+  const sr=$("#socialRows");if(sr)sr.addEventListener("click",e=>{const b=e.target.closest("[data-soc-rm]");if(b)b.closest(".soc-row").remove();});
   const rd=$("#resetData");if(rd)rd.onclick=()=>{openModal(`<button class="icon-btn m-close" data-close>${icon("close")}</button>
-    <div style="text-align:center"><h3>Reset all demo data?</h3><p class="muted" style="font-size:.9rem;margin:10px 0 20px">This restores the original sample content.</p>
+    <div style="text-align:center"><h3>Reset local preview content?</h3><p class="muted" style="font-size:.9rem;margin:10px 0 20px">This restores the starter catalog in this browser.</p>
     <div class="row" style="gap:10px"><button class="btn btn-secondary btn-block" data-close>Cancel</button><button class="btn btn-danger btn-block" id="rdYes">Reset</button></div></div>`);
-    $("#rdYes").onclick=async()=>{await State.db.reset();closeModal();toast("Demo data reset");renderAdminSection();};};
+    $("#rdYes").onclick=async()=>{await State.db.reset();closeModal();toast("Local content reset");renderAdminSection();};};
 }
 async function saveConfigForm(){
   const c=clone(cfg());
@@ -2210,7 +2402,7 @@ async function saveConfigForm(){
   c.pricingDefaults={prompt:+$("#cf_pp").value||0,pack:+$("#cf_pk").value||0};
   const names=$$(".cf_oname"),roles=$$(".cf_orole"),mails=$$(".cf_omail");
   c.ownerProfiles=[0,1].map(i=>({name:names[i].value.trim(),role:roles[i].value.trim(),email:mails[i].value.trim()})).filter(o=>o.name);
-  c.socialLinks={};$$(".cf_soc").forEach(i=>{if(i.value.trim())c.socialLinks[i.dataset.soc]=i.value.trim();});
+  c.socialLinks={};$$(".soc-row").forEach(row=>{const n=row.querySelector(".cf_sname").value.trim().toLowerCase();const u=row.querySelector(".cf_surl").value.trim();if(n&&u)c.socialLinks[n]=u;});
   await State.db.saveConfig(c);toast("Settings saved — live on the site","success");
   buildShell();renderAdmin();
 }
@@ -2243,27 +2435,118 @@ function adminAnalytics(){
       ${metric("Prompt copies",count("prompt_copy"),"copy")}
       ${metric("Checkout clicks",count("prompt_purchase_click")+count("pack_purchase_click"),"cart")}
       ${metric("Custom requests",count("custom_request_submit"),"mail")}</div>
+    <div class="admin-card"><div class="admin-card-head"><h3>Conversion funnel</h3><span class="muted" style="font-size:.8rem">this browser</span></div>
+      ${(()=>{const vw=count("prompt_view"),cp=count("prompt_copy"),ck=count("prompt_purchase_click")+count("pack_purchase_click"),rq=count("custom_request_submit");
+        const stages=[["Prompt views",vw,"var(--blue)"],["Customized / copied",cp,"var(--blue-2)"],["Checkout clicks",ck,"#22c55e"],["Custom requests",rq,"#f59e0b"]];
+        const fmax=Math.max(1,vw,cp,ck,rq);
+        return `<div style="display:flex;flex-direction:column;gap:10px">${stages.map(([l,n,c])=>`<div style="display:flex;align-items:center;gap:12px">
+          <span style="min-width:140px;font-size:.84rem;color:var(--muted)">${l}</span>
+          <div style="flex:1;background:var(--line);border-radius:8px;height:26px;overflow:hidden"><div style="width:${Math.max(5,n/fmax*100)}%;height:100%;background:${c};border-radius:8px;display:flex;align-items:center;padding:0 10px;color:#fff;font-weight:700;font-size:.78rem">${n}</div></div>
+          <span style="min-width:44px;text-align:right;font-size:.8rem;font-weight:700">${vw?Math.round(n/vw*100):0}%</span></div>`).join("")}</div>`;})()}</div>
     <div class="admin-card"><div class="admin-card-head"><h3>Top prompts by purchases</h3></div>
       <div class="bar-chart">${prompts.map(p=>`<div class="bar" style="height:${Math.max(6,(p.purchaseCount||0)/maxPc*140)}px"><b>${p.purchaseCount||0}</b><span>${esc(p.title.split(" ").slice(0,2).join(" "))}</span></div>`).join("")}</div></div>
     <div class="admin-card"><div class="admin-card-head"><h3>Prompts by category</h3></div>
       <div class="bar-chart">${catCounts.map(c=>`<div class="bar" style="height:${Math.max(6,c.n/maxCat*140)}px;background:linear-gradient(180deg,var(--blue-2),var(--blue))"><b>${c.n}</b><span>${esc(c.name.split(" ")[0])}</span></div>`).join("")}</div></div>
-    <p class="muted" style="font-size:.82rem">${FIREBASE_ENABLED?"Connect Firebase Analytics / gtag for full funnel and cohort data.":"Demo metrics are computed from this browser's local event log."}</p>`;
+    <div class="admin-card"><div class="admin-card-head"><h3>Activity heatmap</h3><span class="muted" style="font-size:.8rem">by day & hour</span></div>
+      ${(()=>{const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+        const grid=Array.from({length:7},()=>new Array(24).fill(0));
+        events.forEach(e=>{const d=new Date(e.t||Date.now());const day=(d.getDay()+6)%7;grid[day][d.getHours()]++;});
+        const hmax=Math.max(1,...grid.flat());
+        const hours=[0,3,6,9,12,15,18,21];
+        return `<div style="overflow-x:auto"><div class="heatmap" style="min-width:560px">
+          <span></span>${Array.from({length:24},(_,h)=>`<span class="hm-h">${hours.includes(h)?h:""}</span>`).join("")}
+          ${grid.map((row,di)=>`<span class="hm-day">${days[di]}</span>${row.map(v=>{const a=v?(.15+.85*v/hmax).toFixed(2):0;
+            return `<span class="hm-cell" title="${days[di]} ${"·"} ${v} events" style="${v?`background:rgba(77,163,255,${a})`:""}"></span>`;}).join("")}`).join("")}
+        </div></div>
+        <div class="row" style="gap:8px;align-items:center;margin-top:12px;font-size:.74rem;color:var(--faint)">Less
+          <span style="display:inline-flex;gap:3px">${[.15,.4,.65,.9,1].map(a=>`<span style="width:14px;height:14px;border-radius:3px;background:rgba(77,163,255,${a})"></span>`).join("")}</span>More
+          <span style="margin-left:auto">${events.length} total events</span></div>`;})()}</div>
+    <p class="muted" style="font-size:.82rem">${FIREBASE_ENABLED?"Connect Firebase Analytics / gtag for server-side funnels and cohorts. Charts above reflect live engagement events.":"Local preview metrics are computed from this browser's event log."}</p>`;
 }
 
-/* ========================= BOOT ========================= */
-async function boot(){
-  applyTheme(State.theme);
-  if(FIREBASE_ENABLED){
-    try{State.db=await makeFirebaseDB();}
-    catch(e){console.warn("Firebase unavailable — running on local demo data.",e);State.db=LocalDB;toast("Firebase unavailable — using local demo data.","info");}
-  }
-  await State.db.init();
+/* ---------- SETTINGS ---------- */
+const ROLE_PERMS={owner1:["Full access","Manage prompts, packs & categories","Handle custom requests","Edit site config & legal","Change settings"],owner2:["Manage prompts, packs & categories","Handle custom requests","View analytics"]};
+function adminSettings(){
+  const a=State.admin;const perms=ROLE_PERMS[a.role]||ROLE_PERMS.owner1;
+  return `${adminTop("Settings")}
+    <div class="admin-card"><div class="admin-card-head"><h3>Active session</h3></div>
+      <div class="metric-grid" style="margin:0">
+        <div class="metric"><div class="m-label">${icon("users")} Signed in as</div><div class="m-val" style="font-size:1.1rem">${esc(a.name)}</div></div>
+        <div class="metric"><div class="m-label">${icon("shield")} Role</div><div class="m-val" style="font-size:1.1rem"><span class="role-chip">${esc(a.role)}</span></div></div>
+        <div class="metric"><div class="m-label">${icon("clock")} Signed in</div><div class="m-val" style="font-size:1.1rem">${a.loginAt?timeAgo(a.loginAt):"just now"}</div></div>
+        <div class="metric"><div class="m-label">${icon("bolt")} Mode</div><div class="m-val" style="font-size:1.1rem">${FIREBASE_ENABLED?"Production":"Local preview"}</div></div></div></div>
+
+    <div class="admin-card"><div class="admin-card-head"><h3>Security & session</h3></div>
+      <div class="form-field"><label>Auto-logout after inactivity</label>
+        <select id="stTimeout" style="max-width:220px">${[15,30,60,120].map(m=>`<option value="${m}" ${SESSION_MIN===m?"selected":""}>${m} minutes</option>`).join("")}</select>
+        <p class="muted" style="font-size:.78rem;margin:8px 0 0">You'll be signed out automatically after this much idle time.</p></div>
+      ${FIREBASE_ENABLED?`<div class="detected-vars" style="font-size:.86rem"><b>Password</b><br>Owner passwords are managed in Firebase Authentication. Use the Firebase console or a password-reset email to change them.</div>`
+        :`<div class="form-row"><div class="form-field"><label>New admin password</label><input id="stPass1" type="password" placeholder="••••••••"></div>
+          <div class="form-field"><label>Confirm password</label><input id="stPass2" type="password" placeholder="••••••••"></div></div>
+          <button class="btn btn-secondary btn-sm" id="stSavePass">${icon("check")} Update password</button>
+          <p class="muted" style="font-size:.78rem;margin:10px 0 0">Local preview only: updates the password for this session. Production uses Firebase Authentication. To persist locally, set <code>CONFIG.localPassword</code> in index.html.</p>`}
+    </div>
+
+    <div class="admin-card"><div class="admin-card-head"><h3>Your permissions</h3></div>
+      <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px">${perms.map(p=>`<li style="font-size:.88rem">${esc(p)}</li>`).join("")}</ul></div>
+
+    <div class="admin-card"><div class="admin-card-head"><h3>End session</h3></div>
+      <p class="muted" style="font-size:.86rem">Sign out of the dashboard on this device.</p>
+      <button class="btn btn-danger btn-sm mt-s" id="stLogout">${icon("logout")} Log out now</button></div>`;
+}
+function wireSettings(){
+  const to=$("#stTimeout");if(to)to.onchange=e=>{SESSION_MIN=+e.target.value;resetIdle();toast("Auto-logout set to "+SESSION_MIN+" minutes.","success");};
+  const sp=$("#stSavePass");if(sp)sp.onclick=()=>{const a=$("#stPass1").value,b=$("#stPass2").value;
+    if(a.length<4){toast("Use at least 4 characters.","error");return;}
+    if(a!==b){toast("Passwords don't match.","error");return;}
+    CONFIG.localPassword=a;$("#stPass1").value="";$("#stPass2").value="";toast("Password updated for this session.","success");};
+  const lo=$("#stLogout");if(lo)lo.onclick=()=>{const b=$("#adLogout");if(b)b.click();};
+}
+function renderSetup(){
+  document.documentElement.setAttribute("data-theme",State.theme);
+  const app=$("#app")||document.body;
+  const cfgLine=Object.values({}).length; // noop
+  app.innerHTML=`<div class="setup-wrap"><div class="setup-card">
+    <div class="setup-logo"><span class="logo">${icon("sparkles")}</span> PromptLab</div>
+    <h1>Connect your backend to go live</h1>
+    <p class="setup-lead">PromptLab is built for production. A live marketplace needs one shared database every visitor reads from, so the store stays hidden until you connect <b>Firebase</b>. It takes about five minutes.</p>
+    <ol class="setup-steps">
+      <li><b>Create a Firebase project</b> at console.firebase.google.com, then add a <b>Web app</b> and copy its config object.</li>
+      <li><b>Enable Cloud Firestore</b> and <b>Authentication → Email/Password</b>.</li>
+      <li><b>Paste your config</b> into the <code>CONFIG.firebase</code> block near the top of <code>index.html</code>.</li>
+      <li><b>Publish the security rules</b> from <code>SETUP.md</code> (public read, admin-only writes).</li>
+      <li><b>Create your owner login</b> in Authentication, then add a document at <code>admins/{your-uid}</code> with <code>{ role: "owner1", name: "You" }</code>.</li>
+    </ol>
+    <p class="setup-note">Reload after pasting your config — this screen disappears automatically and your store goes live. Full walkthrough in <b>SETUP.md</b>.</p>
+    <div class="setup-actions">
+      <button class="btn btn-primary btn-lg" id="setupReload">${icon("bolt")} I've added my config — reload</button>
+      <button class="btn btn-secondary btn-lg" id="enterPreview">Preview the storefront locally →</button>
+    </div>
+    <p class="setup-fine">Local preview runs on this browser only (data isn't shared between visitors) — useful for design and demos, not for a live store.</p>
+  </div></div>`;
+  $("#setupReload").onclick=()=>location.reload();
+  $("#enterPreview").onclick=()=>{try{sessionStorage.setItem("pl_preview","1");}catch(e){}startApp();};
+}
+async function startApp(){
   buildShell();
   if(!location.hash)location.hash="#/";
   router();
   window.addEventListener("hashchange",router);
   State.db.onChange(debounce(()=>{const r=State.route||"";
     if(r.startsWith("browse")||r.startsWith("category")||r.startsWith("admin"))return;router();},150));
+}
+async function boot(){
+  applyTheme(State.theme);
+  let preview=false;try{preview=sessionStorage.getItem("pl_preview")==="1";}catch(e){}
+  if(FIREBASE_ENABLED){
+    try{State.db=await makeFirebaseDB();await State.db.init();}
+    catch(e){console.error("Firebase failed to initialize. Check your CONFIG.firebase values and that Firestore + Auth are enabled.",e);renderSetup();return;}
+    return startApp();
+  }
+  // No Firebase configured.
+  if(!preview){renderSetup();return;}
+  await State.db.init();           // local preview (this browser only)
+  startApp();
 }
 boot();
 
