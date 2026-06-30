@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 
 # Replace with your live domain
-Sitemap: https://USERNAME.github.io/REPO/sitemap.xml
+Sitemap: https://johncomputers.github.io/PromptLab/sitemap.xml
