@@ -674,6 +674,28 @@ select:focus{outline:none;border-color:var(--blue)}
 .hm-h{font-size:.6rem;color:var(--faint);text-align:center}
 .hm-day{font-size:.72rem;color:var(--muted);padding-right:8px;text-align:right;white-space:nowrap}
 .hm-cell{aspect-ratio:1;border-radius:3px;background:var(--line);min-height:14px}
+.locked-body{position:relative;max-height:150px;overflow:hidden}
+.lock-veil{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;text-align:center;padding:16px;background:linear-gradient(transparent,var(--surface) 78%)}
+.lock-veil>div{font-size:.84rem;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:7px}
+.lock-veil svg{width:15px;height:15px}
+.cart-grid{display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start}
+.cart-items{display:flex;flex-direction:column;gap:12px}
+.cart-row{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.cart-row-ico{width:42px;height:42px;flex:none;display:grid;place-items:center;background:rgba(77,163,255,.12);color:var(--blue-ink);border-radius:11px}
+.cart-row-ico svg{width:20px;height:20px}
+.cart-row-title{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cart-row-price{font-weight:700;white-space:nowrap}
+.cart-summary{position:sticky;top:90px}
+.cart-line{display:flex;justify-content:space-between;font-size:.92rem;color:var(--muted);padding:6px 0}
+.cart-line.total{border-top:1px solid var(--line);margin-top:6px;padding-top:12px;color:var(--text);font-weight:800;font-size:1.1rem}
+.lib-grid{display:flex;flex-direction:column;gap:18px}
+.lib-card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px}
+.lib-head{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:8px}
+.lib-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:12px}
+.receipt{max-width:420px;margin:0 auto 22px;display:flex;flex-direction:column;gap:8px;text-align:left}
+.receipt-row{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 14px;font-size:.9rem;font-weight:600}
+.receipt-row svg{width:16px;height:16px;color:var(--success);flex:none}
+@media(max-width:860px){.cart-grid{grid-template-columns:1fr}.cart-summary{position:static}}
 </style>
 </head>
 <body>
@@ -711,26 +733,35 @@ const Store=(()=>{
    ============================================================================ */
 const CONFIG={
   firebase:{
-    apiKey:"AIzaSyBknldm66hAJOdjo4I9gSBKqbN7T5Z0hEY",          // <-- paste your Firebase web config
-    authDomain:"promptlab-d8302.firebaseapp.com",
-    projectId:"promptlab-d8302",
-    storageBucket:"promptlab-d8302.firebasestorage.app",
-    messagingSenderId:"1096928014304",
-    appId:"1:1096928014304:web:1704b57e58edae667e8585"
+    apiKey:"YOUR_API_KEY",          // <-- paste your Firebase web config
+    authDomain:"YOUR_PROJECT.firebaseapp.com",
+    projectId:"YOUR_PROJECT",
+    storageBucket:"YOUR_PROJECT.appspot.com",
+    messagingSenderId:"000000000000",
+    appId:"1:000000000000:web:xxxxxxxx"
   },
-  /* Square hosted Checkout / Payment Links. Create links in your Square
-     Dashboard (Online > Checkout links) and paste here OR per-item in admin.
-     With a static front-end this is the secure, PCI-safe payment flow. */
+  /* Square — secure checkout. For card payments you need a tiny backend (the
+     included Cloud Function) that charges via Square's API and records the order.
+     appId + locationId come from your Square Developer dashboard; the function URL
+     is printed when you deploy functions/ (see SETUP.md). */
   square:{
-    defaultCheckoutUrl:"",          // fallback store/checkout link
-    // Tip: set each Square link's "after payment" redirect to: <yoursite>/#/success
+    appId:"",                       // Square Web Payments SDK application ID
+    locationId:"",                  // Square location ID
+    defaultCheckoutUrl:""           // optional legacy hosted-link fallback
   },
-  /* Production admin = Firebase Authentication (Email/Password) + an
-     admins/{uid} document. Leave localPassword empty for production.
-     Set it ONLY to unlock the dashboard during offline local preview. */
-  localPassword:""
+  checkoutFunctionUrl:"",           // deployed createPayment function URL
+  /* ADMIN ACCESS — one shared password for all owners, no individual accounts.
+     • Local preview: this password unlocks the dashboard directly.
+     • Production: the dashboard signs into ONE shared Firebase account
+       (adminEmail below) using this password, so the database stays locked
+       while both owners just type the password. Create that single account
+       once in Firebase Auth with this exact email + password (see SETUP.md). */
+  adminPassword:"promptlabadmin",
+  adminEmail:"admin@promptlab.app"  // the single shared Firebase Auth login
 };
 const FIREBASE_ENABLED = !!(CONFIG.firebase.apiKey && CONFIG.firebase.apiKey!=="YOUR_API_KEY");
+/* back-compat alias */
+CONFIG.localPassword=CONFIG.adminPassword;
 try{window.PROMPTLAB_CONFIG=CONFIG;}catch(e){}
 
 /* -------------------------- ICONS -------------------------- */
@@ -940,17 +971,18 @@ const SEED_CONFIG={
    FirebaseDB activates only when CONFIG.firebase is filled in. */
 const clone=x=>(typeof structuredClone==="function"?structuredClone(x):JSON.parse(JSON.stringify(x)));
 const LocalDB=(()=>{
-  const K="promptlab_data_v1";
+  const K="promptlab_data_v2";
   let data=Store.json(K,null);
   if(!data){
-    data={prompts:clone(SEED_PROMPTS),packs:clone(SEED_PACKS),
-      categories:clone(SEED_CATEGORIES),config:clone(SEED_CONFIG),
-      customRequests:[],purchases:[]};
+    data={prompts:[],packs:[],categories:[],promptContent:{},
+      config:clone(SEED_CONFIG),customRequests:[],orders:[]};
     Store.setJson(K,data);
   }
+  data.promptContent=data.promptContent||{};data.orders=data.orders||[];
   const save=()=>Store.setJson(K,data);
   const listeners=new Set();
   const notify=()=>listeners.forEach(fn=>{try{fn();}catch(e){}});
+  const pub=p=>{const{promptText,variableMeta,...rest}=p;return rest;}; // strip secret fields
   return {
     async init(){return true;},
     onChange(fn){listeners.add(fn);return()=>listeners.delete(fn);},
@@ -959,10 +991,21 @@ const LocalDB=(()=>{
     getCategories(){return data.categories;},
     getConfig(){return data.config;},
     getRequests(){return data.customRequests;},
-    getPurchases(){return data.purchases;},
-    async savePrompt(p){const i=data.prompts.findIndex(x=>x.id===p.id);p.updatedAt=Date.now();
-      if(i>=0)data.prompts[i]=p;else{p.id=p.id||uid("p");p.createdAt=Date.now();data.prompts.unshift(p);}save();notify();return p;},
-    async deletePrompt(id){data.prompts=data.prompts.filter(x=>x.id!==id);save();notify();},
+    getOrders(){return data.orders;},
+    getPurchases(){return data.orders;},
+    async getPromptContent(id){const c=data.promptContent[id];return c?clone(c):null;},
+    ensureOrdersSub(){},
+    async savePrompt(p){
+      const id=p.id||uid("p");const hasText=typeof p.promptText==="string";
+      if(hasText)data.promptContent[id]={promptText:p.promptText,variableMeta:p.variableMeta||{}};
+      const content=data.promptContent[id]||{promptText:"",variableMeta:{}};
+      const rec=pub(p);rec.id=id;rec.variables=parseVars(content.promptText);rec.preview=(content.promptText||"").slice(0,160);rec.updatedAt=Date.now();
+      const i=data.prompts.findIndex(x=>x.id===id);
+      if(i>=0)data.prompts[i]={...data.prompts[i],...rec};
+      else{rec.createdAt=Date.now();rec.purchaseCount=rec.purchaseCount||0;data.prompts.unshift(rec);}
+      save();notify();return rec;
+    },
+    async deletePrompt(id){data.prompts=data.prompts.filter(x=>x.id!==id);delete data.promptContent[id];save();notify();},
     async savePack(p){const i=data.packs.findIndex(x=>x.id===p.id);
       if(i>=0)data.packs[i]=p;else{p.id=p.id||uid("pack");p.createdAt=Date.now();data.packs.unshift(p);}save();notify();return p;},
     async deletePack(id){data.packs=data.packs.filter(x=>x.id!==id);save();notify();},
@@ -970,10 +1013,30 @@ const LocalDB=(()=>{
       if(i>=0)data.categories[i]=c;else{c.id=c.id||slug(c.name)||uid("cat");data.categories.push(c);}save();notify();return c;},
     async deleteCategory(id){data.categories=data.categories.filter(x=>x.id!==id);save();notify();},
     async saveConfig(c){data.config=c;save();notify();return c;},
-    async addRequest(r){r.id=uid("req");r.status="new";r.createdAt=Date.now();r.updatedAt=Date.now();r.assignedTo="";r.responsePrompt="";r.notes="";data.customRequests.unshift(r);save();notify();return r;},
+    async addRequest(r){r.id=uid("req");r.status="new";r.priority=r.priority||"normal";r.createdAt=Date.now();r.updatedAt=Date.now();r.assignedTo="";r.responsePrompt="";r.notes="";data.customRequests.unshift(r);save();notify();return r;},
     async updateRequest(r){const i=data.customRequests.findIndex(x=>x.id===r.id);if(i>=0){r.updatedAt=Date.now();data.customRequests[i]=r;}save();notify();return r;},
-    async addPurchase(p){p.id=uid("pur");p.createdAt=Date.now();data.purchases.unshift(p);save();notify();return p;},
-    async reset(){Store.del(K);data={prompts:clone(SEED_PROMPTS),packs:clone(SEED_PACKS),categories:clone(SEED_CATEGORIES),config:clone(SEED_CONFIG),customRequests:[],purchases:[]};save();notify();}
+    /* Local checkout emulator — mirrors the Cloud Function (server-authority price
+       lookup, order record, gated content delivery). Preview only: no real charge. */
+    async checkout(cart,buyer){
+      const items=[];let amount=0;const lines=[];
+      for(const ci of (cart||[])){
+        if(ci.type==="pack"){
+          const pk=data.packs.find(x=>x.id===ci.id);if(!pk)continue;
+          amount+=pk.price||0;lines.push({id:pk.id,type:"pack",title:pk.title,price:pk.price||0});
+          for(const pid of (pk.promptIds||[])){const pr=data.prompts.find(x=>x.id===pid),ct=data.promptContent[pid];
+            if(pr&&ct)items.push({id:pr.id,type:"prompt",title:pr.title,categoryId:pr.categoryId,promptText:ct.promptText,variableMeta:ct.variableMeta,packId:pk.id});}
+        }else{
+          const pr=data.prompts.find(x=>x.id===ci.id),ct=data.promptContent[ci.id];if(!pr||!ct)continue;
+          amount+=pr.price||0;lines.push({id:pr.id,type:"prompt",title:pr.title,price:pr.price||0});
+          items.push({id:pr.id,type:"prompt",title:pr.title,categoryId:pr.categoryId,promptText:ct.promptText,variableMeta:ct.variableMeta});
+        }
+      }
+      const order={id:uid("ord"),lines,email:(buyer&&buyer.email)||"",amount,currency:"USD",status:"paid",mode:"preview",itemCount:items.length,createdAt:Date.now()};
+      data.orders.unshift(order);
+      (cart||[]).forEach(ci=>{const arr=ci.type==="pack"?data.packs:data.prompts;const it=arr.find(x=>x.id===ci.id);if(it)it.purchaseCount=(it.purchaseCount||0)+1;});
+      save();notify();return {order,items};
+    },
+    async reset(){Store.del(K);data={prompts:[],packs:[],categories:[],promptContent:{},config:clone(SEED_CONFIG),customRequests:[],orders:[]};save();notify();}
   };
 })();
 
@@ -986,38 +1049,83 @@ async function makeFirebaseDB(){
   const au=await import(`https://www.gstatic.com/firebasejs/${v}/firebase-auth.js`);
   const fbApp=app.initializeApp(CONFIG.firebase);
   const db=fs.getFirestore(fbApp); const auth=au.getAuth(fbApp);
-  const cache={prompts:[],packs:[],categories:[],config:clone(SEED_CONFIG),customRequests:[],purchases:[]};
+  const cache={prompts:[],packs:[],categories:[],config:clone(SEED_CONFIG),customRequests:[],orders:[]};
   const listeners=new Set(); const notify=()=>listeners.forEach(f=>{try{f();}catch(e){}});
   const col=n=>fs.collection(db,n);
-  // live listeners
+  let ordersUnsub=null;
+  // public live listeners (no promptContent — that collection is admin/function-only)
   fs.onSnapshot(col("prompts"),s=>{cache.prompts=s.docs.map(d=>({id:d.id,...d.data()}));notify();});
   fs.onSnapshot(col("packs"),s=>{cache.packs=s.docs.map(d=>({id:d.id,...d.data()}));notify();});
   fs.onSnapshot(col("categories"),s=>{cache.categories=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.order||0)-(b.order||0));notify();});
   fs.onSnapshot(fs.doc(db,"siteConfig","main"),d=>{if(d.exists())cache.config={...cache.config,...d.data()};notify();});
   fs.onSnapshot(col("customRequests"),s=>{cache.customRequests=s.docs.map(d=>({id:d.id,...d.data()}));notify();});
+  const pub=p=>{const{promptText,variableMeta,...rest}=p;return rest;};
   return {
     _auth:auth,_au:au,_fs:fs,_db:db,
     async init(){return true;},
     onChange(fn){listeners.add(fn);return()=>listeners.delete(fn);},
     getPrompts(){return cache.prompts;},getPacks(){return cache.packs;},
     getCategories(){return cache.categories;},getConfig(){return cache.config;},
-    getRequests(){return cache.customRequests;},getPurchases(){return cache.purchases;},
-    async savePrompt(p){p.updatedAt=Date.now();const id=p.id||uid("p");await fs.setDoc(fs.doc(db,"prompts",id),{...p,id});return p;},
-    async deletePrompt(id){await fs.deleteDoc(fs.doc(db,"prompts",id));},
+    getRequests(){return cache.customRequests;},getOrders(){return cache.orders;},getPurchases(){return cache.orders;},
+    // admin-only orders feed (rules block public reads); started after login
+    ensureOrdersSub(){if(ordersUnsub)return;try{ordersUnsub=fs.onSnapshot(col("orders"),s=>{cache.orders=s.docs.map(d=>({id:d.id,...d.data()}));notify();});}catch(e){}},
+    async getPromptContent(id){const d=await fs.getDoc(fs.doc(db,"promptContent",id));return d.exists()?d.data():null;},
+    async savePrompt(p){
+      const id=p.id||uid("p");const hasText=typeof p.promptText==="string";
+      const rec={...pub(p),id,updatedAt:Date.now()};
+      if(hasText){rec.variables=parseVars(p.promptText);rec.preview=p.promptText.slice(0,160);}
+      await fs.setDoc(fs.doc(db,"prompts",id),rec,{merge:true});
+      if(hasText)await fs.setDoc(fs.doc(db,"promptContent",id),{promptText:p.promptText,variableMeta:p.variableMeta||{},id});
+      return rec;
+    },
+    async deletePrompt(id){await fs.deleteDoc(fs.doc(db,"prompts",id));try{await fs.deleteDoc(fs.doc(db,"promptContent",id));}catch(e){}},
     async savePack(p){const id=p.id||uid("pack");await fs.setDoc(fs.doc(db,"packs",id),{...p,id});return p;},
     async deletePack(id){await fs.deleteDoc(fs.doc(db,"packs",id));},
     async saveCategory(c){const id=c.id||slug(c.name);await fs.setDoc(fs.doc(db,"categories",id),{...c,id});return c;},
     async deleteCategory(id){await fs.deleteDoc(fs.doc(db,"categories",id));},
     async saveConfig(c){await fs.setDoc(fs.doc(db,"siteConfig","main"),c);return c;},
-    async addRequest(r){const ref=await fs.addDoc(col("customRequests"),{...r,status:"new",createdAt:Date.now(),updatedAt:Date.now(),assignedTo:"",responsePrompt:"",notes:""});return{...r,id:ref.id};},
+    async addRequest(r){const ref=await fs.addDoc(col("customRequests"),{...r,status:"new",priority:r.priority||"normal",createdAt:Date.now(),updatedAt:Date.now(),assignedTo:"",responsePrompt:"",notes:""});return{...r,id:ref.id};},
     async updateRequest(r){await fs.setDoc(fs.doc(db,"customRequests",r.id),{...r,updatedAt:Date.now()});return r;},
-    async addPurchase(p){const ref=await fs.addDoc(col("purchases"),{...p,createdAt:Date.now()});return{...p,id:ref.id};},
     async reset(){}
   };
 }
 
 /* App-wide state */
 const State={db:LocalDB,admin:null,theme:Store.get("pl_theme")||"light",route:null};
+
+/* ---------- CART (per-browser, localStorage) ---------- */
+const Cart=(()=>{
+  const K="pl_cart";const subs=new Set();
+  const read=()=>Store.json(K,[]);
+  const write=a=>{Store.setJson(K,a);subs.forEach(f=>{try{f();}catch(e){}});};
+  return {
+    items(){return read();},
+    count(){return read().length;},
+    has(id,type){return read().some(x=>x.id===id&&x.type===type);},
+    add(id,type){const a=read();if(a.some(x=>x.id===id&&x.type===type))return false;a.push({id,type,addedAt:Date.now()});write(a);return true;},
+    remove(id,type){write(read().filter(x=>!(x.id===id&&x.type===type)));},
+    toggle(id,type){return this.has(id,type)?(this.remove(id,type),false):(this.add(id,type),true);},
+    clear(){write([]);},
+    onChange(fn){subs.add(fn);return()=>subs.delete(fn);}
+  };
+})();
+/* ---------- LIBRARY (purchased content cached per-browser after delivery) ---------- */
+const Library=(()=>{
+  const K="pl_library";
+  const read=()=>Store.json(K,[]);
+  return {
+    items(){return read();},
+    has(id){return read().some(x=>x.id===id);},
+    get(id){return read().find(x=>x.id===id)||null;},
+    addDelivered(order,items){
+      const lib=read();
+      items.forEach(it=>{const i=lib.findIndex(x=>x.id===it.id);
+        const rec={...it,orderId:order.id,purchasedAt:order.createdAt||Date.now()};
+        if(i>=0)lib[i]=rec;else lib.unshift(rec);});
+      Store.setJson(K,lib);
+    }
+  };
+})();
 
 /* ========================= UI PRIMITIVES ========================= */
 const view=html=>{const v=$("#view");if(v)v.innerHTML=html;window.scrollTo(0,0);observeReveals();};
@@ -1058,7 +1166,7 @@ function animateCounters(){
 }
 
 /* ========================= APP SHELL ========================= */
-const NAV=[["Home","#/"],["Browse Prompts","#/browse"],["Categories","#/categories"],["Prompt Packs","#/packs"],["Custom Prompts","#/custom"],["Pricing","#/pricing"],["About","#/about"],["FAQ","#/faq"],["Contact","#/contact"]];
+const NAV=[["Home","#/"],["Browse Prompts","#/browse"],["Categories","#/categories"],["Prompt Packs","#/packs"],["Custom Prompts","#/custom"],["Pricing","#/pricing"],["My Library","#/library"],["About","#/about"],["FAQ","#/faq"],["Contact","#/contact"]];
 function navLinks(){const cur="#"+(location.hash.replace(/^#/,"")||"/");
   return NAV.map(([t,h])=>`<a class="nav-link${cur===h?" active":""}" href="${h}">${t}</a>`).join("");}
 function setActiveNav(){const cur="#"+(location.hash.replace(/^#/,"")||"/");
@@ -1093,7 +1201,7 @@ function buildShell(){
     <div class="nav-actions">
       <button class="icon-btn" id="searchBtn" title="Search prompts" aria-label="Search">${icon("search")}</button>
       <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle dark mode">${icon(State.theme==="dark"?"sun":"moon")}</button>
-      <button class="icon-btn" id="cartBtn" title="Checkout" aria-label="Cart">${icon("cart")}</button>
+      <button class="icon-btn" id="cartBtn" title="Cart" aria-label="Cart" style="position:relative">${icon("cart")}<span class="cart-count" id="cartCount" style="display:none">0</span></button>
       <a class="btn btn-primary btn-sm" href="#/browse">Get Started</a>
       <button class="icon-btn hamburger" id="hamburger" aria-label="Menu">${icon("menu")}</button>
     </div></div></header>
@@ -1106,7 +1214,8 @@ function buildShell(){
     <nav id="drawerLinks">${navLinks()}</nav>
     <a class="btn btn-primary btn-block mt-m" href="#/browse">Get Started</a></aside>`;
   $("#themeBtn").onclick=toggleTheme;
-  $("#cartBtn").onclick=()=>toast("PromptLab uses instant checkout — no cart needed.","info");
+  $("#cartBtn").onclick=()=>{location.hash="#/cart";};
+  refreshCartBadge();Cart.onChange(refreshCartBadge);
   $("#searchBtn").onclick=()=>{location.hash="#/browse";setTimeout(()=>{const s=$("#browseSearch");if(s){s.focus();s.scrollIntoView({block:"center"});}},140);};
   const dr=$("#drawer"),bg=$("#drawerBg");
   const closeDr=()=>{dr.classList.remove("open");bg.classList.remove("open");};
@@ -1119,9 +1228,11 @@ function buildShell(){
   document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeDr();}});
   initAdminAccess();
 }
+function refreshCartBadge(){const n=Cart.count();const el=$("#cartCount");if(el){el.textContent=n;el.style.display=n>0?"flex":"none";}}
 /* ========================= CARD BUILDERS ========================= */
 function promptCard(p){
-  const vars=parseVars(p.promptText).slice(0,3);
+  const vars=(p.variables||[]).slice(0,3);
+  const inCart=Cart.has(p.id,"prompt");
   return `<article class="p-card reveal" data-go="#/prompt/${p.id}">
     <div class="p-card-top"><div class="p-tags"><span class="badge">${esc(catName(p.categoryId))}</span></div>
       <span class="badge price">${money(p.price)}</span></div>
@@ -1131,7 +1242,7 @@ function promptCard(p){
     <div class="p-foot"><div class="p-meta"><span class="badge diff-${p.difficulty}">${p.difficulty}</span>
       <span class="ai-dots">${(p.aiCompatibility||[]).slice(0,2).map(a=>`<span class="ai-dot">${esc(a)}</span>`).join("")}</span></div>
       <div class="p-actions"><button class="btn btn-secondary btn-sm" data-preview="${p.id}">Preview</button>
-      <button class="btn btn-primary btn-sm" data-buy="${p.id}">Buy</button></div></div></article>`;
+      ${inCart?`<a class="btn btn-secondary btn-sm" href="#/cart">In cart ✓</a>`:`<button class="btn btn-primary btn-sm" data-add="${p.id}">Add to cart</button>`}</div></div></article>`;
 }
 function packCard(pk){
   const n=(pk.promptIds||[]).length;
@@ -1142,7 +1253,7 @@ function packCard(pk){
     <div class="pk-count">${n} prompts included · save vs. buying individually</div>
     <div class="pk-price">${money(pk.price)} <small>/ pack</small></div>
     <div class="pk-foot"><a class="btn btn-secondary btn-block" href="#/pack/${pk.id}">View Pack</a>
-      <button class="btn btn-primary btn-block" data-buypack="${pk.id}">Buy Now</button></div></article>`;
+      ${Cart.has(pk.id,"pack")?`<a class="btn btn-secondary btn-block" href="#/cart">In cart ✓</a>`:`<button class="btn btn-primary btn-block" data-addpack="${pk.id}">Add to cart</button>`}</div></article>`;
 }
 function categoryCard(c){
   return `<a class="cat-card reveal" href="#/category/${c.id}">
@@ -1156,10 +1267,19 @@ function heroFloatCard(cls,ic,title,cat,body,price){
     <div class="fc-body">${html}</div>
     <div class="fc-foot"><span class="badge price">${esc(price)}</span><span class="badge">${esc(cat)}</span></div></div>`;
 }
+function addToCart(id,type){
+  const ok=Cart.add(id,type);
+  toast(ok?`${type==="pack"?"Pack":"Prompt"} added to cart`:"Already in your cart",ok?"success":"info");
+  return ok;
+}
 document.addEventListener("click",e=>{
-  const buy=e.target.closest("[data-buy]"),buyPack=e.target.closest("[data-buypack]"),prev=e.target.closest("[data-preview]"),go=e.target.closest("[data-go]");
-  if(buy){e.preventDefault();e.stopPropagation();buyItem(promptById(buy.dataset.buy),"prompt");return;}
-  if(buyPack){e.preventDefault();e.stopPropagation();buyItem(packById(buyPack.dataset.buypack),"pack");return;}
+  const add=e.target.closest("[data-add]"),addPack=e.target.closest("[data-addpack]"),
+        buynow=e.target.closest("[data-buynow]"),buynowPack=e.target.closest("[data-buynowpack]"),
+        prev=e.target.closest("[data-preview]"),go=e.target.closest("[data-go]");
+  if(add){e.preventDefault();e.stopPropagation();if(addToCart(add.dataset.add,"prompt"))add.textContent="Added ✓";return;}
+  if(addPack){e.preventDefault();e.stopPropagation();if(addToCart(addPack.dataset.addpack,"pack"))addPack.textContent="Added ✓";return;}
+  if(buynow){e.preventDefault();e.stopPropagation();Cart.add(buynow.dataset.buynow,"prompt");location.hash="#/cart";return;}
+  if(buynowPack){e.preventDefault();e.stopPropagation();Cart.add(buynowPack.dataset.buynowpack,"pack");location.hash="#/cart";return;}
   if(prev){e.preventDefault();e.stopPropagation();showPreview(promptById(prev.dataset.preview));return;}
   if(go&&!e.target.closest("button")&&!e.target.closest("a")){location.hash=go.dataset.go;}
 });
@@ -1171,28 +1291,31 @@ function showPreview(p){
     <p class="muted" style="font-size:.9rem">${esc(p.description)}</p>
     <div class="viewer" style="margin:16px 0 0;box-shadow:none">
       <div class="viewer-head"><span class="vh-title">${icon("sparkles")} Example output</span></div>
-      <div class="output-box" style="border:none;border-radius:0;margin:0;background:transparent">${esc(p.previewOutput||"Buy this prompt to reveal the full template.")}</div></div>
+      <div class="output-box" style="border:none;border-radius:0;margin:0;background:transparent">${esc(p.previewOutput||"The full prompt unlocks in your Library after purchase.")}</div></div>
     <div class="row sp-between mt-m"><span class="badge price" style="font-size:.9rem">${money(p.price)}</span>
       <div class="row"><a class="btn btn-secondary" href="#/prompt/${p.id}" data-close>Open</a>
-      <button class="btn btn-primary" data-buy="${p.id}">Buy Now</button></div></div>`);
+      <button class="btn btn-primary" data-add="${p.id}" data-close>Add to cart</button></div></div>`);
 }
 
-/* ========================= CHECKOUT (Square) + ANALYTICS ========================= */
-function buyItem(item,type){
-  if(!item){toast("That item is no longer available.","error");return;}
-  const c=cfg();
-  const url=item.checkoutUrl||(c.square&&c.square.defaultCheckoutUrl)||CONFIG.square.defaultCheckoutUrl||"";
-  track(type==="pack"?"pack_purchase_click":"prompt_purchase_click",{id:item.id});
-  if(url){
-    State.db.addPurchase({itemType:type,itemId:item.id,amount:item.price,email:"",paymentStatus:"pending"});
-    toast("Opening secure Square checkout…","info");window.open(url,"_blank","noopener");
-  }else{
-    openModal(`<button class="icon-btn m-close" data-close>${icon("close")}</button>
-      <div style="text-align:center"><div class="cat-ico" style="margin:0 auto 14px;width:54px;height:54px">${icon("lock")}</div>
-      <h3>Checkout link not set yet</h3>
-      <p class="muted" style="font-size:.9rem;margin:10px 0 18px">Add a Square payment link to enable purchases. Open the admin dashboard (<b>Ctrl + Alt + Shift + L</b>) → <b>Site Config</b> to paste a default Square checkout URL, or set one per item in the Prompt/Pack editor.</p>
-      <button class="btn btn-secondary btn-block" data-close>Got it</button></div>`);
+/* ========================= SECURE CHECKOUT + ANALYTICS =========================
+   Payment + delivery are server-authoritative:
+   • Local preview  → State.db.checkout() emulates the Cloud Function (no real charge).
+   • Production      → Square Web Payments SDK tokenizes the card (PCI-safe), then the
+                       Cloud Function (CONFIG.checkoutFunctionUrl) re-prices server-side,
+                       charges Square, records the order, and returns the prompt content.
+   The browser never sets the price and never receives prompt text before payment. */
+const paymentsConfigured=()=>!!(FIREBASE_ENABLED&&CONFIG.checkoutFunctionUrl&&CONFIG.square.appId&&CONFIG.square.locationId);
+
+async function processCheckout(cart,buyer,sourceId){
+  if(!cart||!cart.length)throw new Error("Your cart is empty.");
+  if(FIREBASE_ENABLED){
+    if(!CONFIG.checkoutFunctionUrl)throw new Error("Payments are not configured yet.");
+    const res=await fetch(CONFIG.checkoutFunctionUrl,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({items:cart.map(c=>({id:c.id,type:c.type})),buyerEmail:(buyer&&buyer.email)||"",sourceId,idempotencyKey:uid("idem")})});
+    if(!res.ok){let m="Payment failed.";try{m=(await res.json()).error||m;}catch(e){}throw new Error(m);}
+    return await res.json(); // {order, items:[{id,title,promptText,variableMeta,...}]}
   }
+  return await State.db.checkout(cart,buyer); // preview emulator
 }
 function track(event,params={}){
   try{if(FIREBASE_ENABLED&&window.gtag)window.gtag("event",event,params);}catch(e){}
@@ -1484,7 +1607,7 @@ function browseItems(){
       if(BS.ai.size&&!(it.aiCompatibility||[]).some(a=>BS.ai.has(a)||(a!=="ChatGPT"&&a!=="Claude"&&a!=="Gemini"&&BS.ai.has("Other"))))return false;
     }
     if(BS.q){
-      const hay=(it.title+" "+(it.description||"")+" "+(it.tags||[]).join(" ")+" "+parseVars(it.promptText).join(" ")).toLowerCase();
+      const hay=(it.title+" "+(it.description||"")+" "+(it.tags||[]).join(" ")+" "+((it.variables||[]).join(" "))).toLowerCase();
       if(!hay.includes(BS.q))return false;
     }
     return true;
@@ -1581,8 +1704,11 @@ function renderPack(id){
         <li>${icon("check")} Variable fields for instant customizing</li>
         <li>${icon("check")} Works with ChatGPT, Claude &amp; Gemini</li>
         <li>${icon("check")} Lifetime access — buy once</li></ul></div>
-      <button class="btn btn-primary btn-block btn-lg" data-buypack="${pk.id}">${icon("bolt")} Buy this pack</button>
-      <div class="secure">${icon("shield")} Secure checkout via Square</div>
+      ${Library.has(pk.id)?`<a class="btn btn-primary btn-block btn-lg" href="#/library">${icon("check")} Open in your Library</a>`
+        :Cart.has(pk.id,"pack")?`<a class="btn btn-primary btn-block btn-lg" href="#/cart">${icon("cart")} In cart — checkout</a>`
+        :`<button class="btn btn-primary btn-block btn-lg" data-addpack="${pk.id}">${icon("cart")} Add to cart</button>
+          <button class="btn btn-secondary btn-block" data-buynowpack="${pk.id}" style="margin-top:10px">Buy now</button>`}
+      <div class="secure">${icon("shield")} Payment verified server-side before delivery</div>
     </div></div>
   </div></div>
   ${related.length?`<section class="related"><div class="container">
@@ -1612,7 +1738,8 @@ function renderPrompt(id){
   if(!p){renderNotFound("That prompt is no longer available.");return;}
   track("prompt_view",{id:p.id});
   setJsonLd(ldProduct(p));setPageMeta(`${p.title} — PromptLab`,p.description);
-  const vars=parseVars(p.promptText);
+  const vars=p.variables||[];
+  const owned=Library.has(p.id),inCart=Cart.has(p.id,"prompt");
   const related=relatedPrompts(p);
   view(`<div class="container"><div class="crumbs">
     <a href="#/">Home</a><span class="sep">/</span><a href="#/categories">Categories</a><span class="sep">/</span>
@@ -1625,17 +1752,15 @@ function renderPrompt(id){
         <h1>${esc(p.title)}</h1><p class="lead">${esc(p.description)}</p></div>
 
       <div class="viewer">
-        <div class="viewer-head"><span class="vh-title">${icon("sparkles")} Prompt template</span>
-          <button class="btn btn-primary btn-sm" id="copyBtn">${icon("copy")} Copy prompt</button></div>
-        <div class="viewer-body" id="promptViewer">${highlightPrompt(p.promptText,Object.fromEntries(Object.entries(p.variableMeta||{}).filter(([k,m])=>m.default).map(([k,m])=>[k,m.default])))}</div></div>
+        <div class="viewer-head"><span class="vh-title">${icon("lock")} Prompt template — preview</span>
+          <span class="badge">${owned?"Owned":"Unlocks after purchase"}</span></div>
+        <div class="viewer-body locked-body">${highlightPrompt((p.preview||p.description||"").slice(0,160)+" …",{})}
+          ${owned?"":`<div class="lock-veil"><div>${icon("lock")} Full prompt unlocks in your Library after purchase</div></div>`}</div></div>
 
       ${vars.length?`<div class="var-engine">
-        <div class="var-engine-head"><h3>${icon("bolt")} Customize your prompt</h3>
-          <button class="toggle on" id="liveToggle"><span class="tg"></span> Live preview</button></div>
-        <p class="muted" style="font-size:.86rem;margin:6px 0 0">Fill in the fields below — your values are injected into the prompt and the preview updates instantly.</p>
-        <div class="var-fields" id="varFields">${vars.map(v=>{const m=(p.variableMeta||{})[v.toLowerCase()]||{};
-          return `<div class="field"><label>${esc(m.label||v)} ${m.required?'<span class="req">*</span>':''}</label>
-          <input class="v-input" data-key="${esc(v.toLowerCase())}" value="${esc(m.default||"")}" ${m.required?'data-req="1"':""} placeholder="${esc(m.example||("Enter "+v.toLowerCase()+"…"))}"></div>`;}).join("")}</div>
+        <h3>${icon("bolt")} ${vars.length} customizable variable${vars.length===1?"":"s"}</h3>
+        <p class="muted" style="font-size:.86rem;margin:6px 0 12px">Fill these in and copy the finished prompt from your Library after purchase.</p>
+        <div class="p-vars">${vars.map(v=>`<span class="var-chip">[${esc(v)}]</span>`).join("")}</div>
       </div>`:""}
 
       ${p.previewOutput?`<div class="var-engine"><h3 style="margin-bottom:12px">${icon("chart")} Example output</h3>
@@ -1648,29 +1773,17 @@ function renderPrompt(id){
         <li>${icon("check")} Full prompt template, ready to copy</li>
         <li>${icon("check")} ${vars.length} customizable variable${vars.length===1?"":"s"}</li>
         <li>${icon("check")} Tested on ${(p.aiCompatibility||[]).join(", ")||"major models"}</li>
-        <li>${icon("check")} Lifetime access &amp; future updates</li></ul></div>
-      <button class="btn btn-primary btn-block btn-lg" data-buy="${p.id}">${icon("bolt")} Buy Now</button>
-      <div class="secure">${icon("shield")} Secure checkout via Square</div>
+        <li>${icon("check")} Lifetime access in your Library</li></ul></div>
+      ${owned?`<a class="btn btn-primary btn-block btn-lg" href="#/library">${icon("check")} Open in your Library</a>`
+        :inCart?`<a class="btn btn-primary btn-block btn-lg" href="#/cart">${icon("cart")} In cart — checkout</a>`
+        :`<button class="btn btn-primary btn-block btn-lg" data-add="${p.id}">${icon("cart")} Add to cart</button>
+          <button class="btn btn-secondary btn-block" data-buynow="${p.id}" style="margin-top:10px">Buy now</button>`}
+      <div class="secure">${icon("shield")} Payment verified server-side before delivery</div>
       <div class="buy-custom">Need something more specific? <a href="#/custom">Request a custom prompt →</a></div>
     </div></div>
   </div></div>
   ${related.length?`<section class="related"><div class="container">
     <h2 style="margin-bottom:20px">Related prompts</h2><div class="grid cols-3">${related.map(promptCard).join("")}</div></div></section>`:""}`);
-
-  // ---- variable engine wiring ----
-  const viewer=$("#promptViewer");const copyBtn=$("#copyBtn");
-  let live=true;
-  const values=()=>{const o={};$$(".v-input").forEach(i=>{const v=i.value.trim();if(v)o[i.dataset.key]=v;});return o;};
-  const refresh=()=>{viewer.innerHTML=highlightPrompt(p.promptText,live?values():{});};
-  $$(".v-input").forEach(i=>i.addEventListener("input",refresh));
-  const lt=$("#liveToggle");
-  if(lt)lt.onclick=()=>{live=!live;lt.classList.toggle("on",live);refresh();};
-  copyBtn.onclick=async()=>{
-    const text=live?applyVars(p.promptText,values()):p.promptText;
-    try{await navigator.clipboard.writeText(text);}catch(e){const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(_){}ta.remove();}
-    copyBtn.innerHTML=`${icon("check")} Copied!`;toast("Prompt copied to clipboard");track("prompt_copy",{id:p.id});
-    setTimeout(()=>copyBtn.innerHTML=`${icon("copy")} Copy prompt`,1800);
-  };
 }
 /* ========================= VIEW: CUSTOM REQUEST ========================= */
 const DRAFT_KEY="pl_custom_draft";
@@ -1857,26 +1970,148 @@ function renderLegal(doc){
 }
 
 /* ========================= VIEW: SUCCESS ========================= */
-function renderSuccess(q){
-  const type=q.get("type");const id=q.get("id");
-  let title="Thank you!",msg="Your order is confirmed.",extra="";
-  if(type==="custom"){title="Request received";msg="Thanks for your custom prompt request — we'll review it and get back to you "+cfg().responseTime+". Keep an eye on your inbox.";}
-  else{
-    const item=id?(promptById(id)||packById(id)):null;
-    if(item){title="You're all set!";msg=`Your purchase of <b>${esc(item.title)}</b> is confirmed.`;
-      if(item.promptText){extra=`<button class="btn btn-secondary" id="copyAccess">${icon("copy")} Copy your prompt</button>`;}}
-    else{msg="Your purchase is confirmed. Check your email for access details.";}
+/* ========================= CART • CHECKOUT • LIBRARY ========================= */
+function loadSquareSdk(){return new Promise((res,rej)=>{
+  if(window.Square)return res(window.Square);
+  const s=document.createElement("script");s.src="https://web.squarecdn.com/v1/square.js";
+  s.onload=()=>window.Square?res(window.Square):rej(new Error("Square unavailable"));
+  s.onerror=()=>rej(new Error("Square SDK failed to load"));document.head.appendChild(s);});}
+async function completeOrder(buyer,sourceId,btn){
+  const restore=btn?btn.innerHTML:"";
+  if(btn){btn.disabled=true;btn.innerHTML=`${icon("bolt")} Processing…`;}
+  try{
+    const res=await processCheckout(Cart.items(),buyer,sourceId);
+    if(!res||!res.order)throw new Error("No confirmation returned.");
+    Library.addDelivered(res.order,res.items||[]);
+    try{sessionStorage.setItem("pl_last_order",JSON.stringify({order:res.order,items:(res.items||[]).map(i=>({id:i.id,title:i.title,type:i.type}))}));}catch(e){}
+    track("purchase",{amount:res.order.amount,items:(res.items||[]).length});
+    Cart.clear();location.hash="#/success";
+  }catch(e){toast(e.message||"Checkout failed.","error");if(btn){btn.disabled=false;btn.innerHTML=restore;}}
+}
+function mountCheckout(subtotal){
+  const area=$("#checkoutArea");if(!area)return;
+  const getBuyer=()=>({email:(($("#buyerEmail")||{}).value||"").trim()});
+  if(!FIREBASE_ENABLED){
+    area.innerHTML=`<button class="btn btn-primary btn-block btn-lg" id="payBtn" style="margin-top:4px">${icon("bolt")} Complete order — ${money(subtotal)}</button>
+      <p class="muted center" style="font-size:.74rem;margin:8px 0 0">Local preview — no real charge. Connect Square for live payments.</p>`;
+    $("#payBtn").onclick=()=>completeOrder(getBuyer(),null,$("#payBtn"));return;
   }
+  if(!paymentsConfigured()){
+    area.innerHTML=`<div class="admin-banner" style="margin-top:10px">${icon("lock")} Payments aren't configured yet. Set Square <code>appId</code>/<code>locationId</code> and deploy the checkout function (SETUP.md).</div>`;return;
+  }
+  area.innerHTML=`<div id="sqCard" style="margin:12px 0;min-height:48px"></div>
+    <button class="btn btn-primary btn-block btn-lg" id="payBtn" disabled>${icon("lock")} Pay ${money(subtotal)}</button>`;
+  const payBtn=$("#payBtn");
+  loadSquareSdk().then(async Sq=>{
+    try{
+      const payments=Sq.payments(CONFIG.square.appId,CONFIG.square.locationId);
+      const card=await payments.card();await card.attach("#sqCard");payBtn.disabled=false;
+      payBtn.onclick=async()=>{payBtn.disabled=true;
+        try{const r=await card.tokenize();
+          if(r.status==="OK")await completeOrder(getBuyer(),r.token,payBtn);
+          else{toast("Please check your card details.","error");payBtn.disabled=false;}
+        }catch(e){toast("Payment error. Try again.","error");payBtn.disabled=false;}};
+    }catch(e){area.innerHTML=`<div class="admin-banner">${icon("lock")} Could not start Square — verify appId/locationId.</div>`;}
+  }).catch(()=>{area.innerHTML=`<div class="admin-banner">${icon("lock")} Square SDK failed to load.</div>`;});
+}
+function renderCart(){
+  setPageMeta("Your cart — PromptLab");
+  const rows=Cart.items().map(ci=>{
+    if(ci.type==="pack"){const pk=packById(ci.id);return pk?{id:ci.id,type:"pack",title:pk.title,price:pk.price||0,sub:`${(pk.promptIds||[]).length} prompts included`}:null;}
+    const p=promptById(ci.id);return p?{id:ci.id,type:"prompt",title:p.title,price:p.price||0,sub:catName(p.categoryId)}:null;
+  }).filter(Boolean);
+  if(rows.length!==Cart.count()){Cart.items().forEach(ci=>{if(!rows.some(r=>r.id===ci.id&&r.type===ci.type))Cart.remove(ci.id,ci.type);});}
+  const subtotal=rows.reduce((s,r)=>s+r.price,0);
+  if(!rows.length){
+    view(`<section class="section"><div class="container"><div class="success-wrap">
+      <div class="success-ico" style="background:rgba(77,163,255,.12);color:var(--blue-ink)">${icon("cart")}</div>
+      <h1 style="font-size:2rem">Your cart is empty</h1>
+      <p class="lead" style="margin:14px auto 22px">Add prompts or packs and they'll show up here.</p>
+      <div class="hero-cta" style="justify-content:center"><a class="btn btn-primary btn-lg" href="#/browse">Browse prompts</a>
+      <a class="btn btn-secondary btn-lg" href="#/packs">View packs</a></div>
+      ${Library.items().length?`<p class="muted mt-l" style="font-size:.9rem">Already purchased? <a href="#/library" style="color:var(--blue-ink)">Open your Library →</a></p>`:""}
+    </div></div></section>`);return;
+  }
+  view(`<div class="container" style="padding:32px 0"><h1 style="margin-bottom:4px">Your cart</h1>
+    <p class="muted" style="margin-bottom:24px">${rows.length} item${rows.length===1?"":"s"}</p>
+    <div class="cart-grid">
+      <div class="cart-items">${rows.map(r=>`<div class="cart-row">
+        <div class="cart-row-ico">${icon(r.type==="pack"?"box":"sparkles")}</div>
+        <div style="flex:1;min-width:0"><div class="cart-row-title">${esc(r.title)}</div><div class="muted" style="font-size:.8rem">${esc(r.sub)} · ${r.type==="pack"?"Pack":"Single prompt"}</div></div>
+        <div class="cart-row-price">${money(r.price)}</div>
+        <button class="icon-btn" data-rm="${r.id}|${r.type}" title="Remove" aria-label="Remove">${icon("trash")}</button></div>`).join("")}</div>
+      <aside class="cart-summary buy-panel">
+        <h3 style="margin:0 0 14px">Order summary</h3>
+        <div class="cart-line"><span>Subtotal</span><span>${money(subtotal)}</span></div>
+        <div class="cart-line total"><span>Total</span><span>${money(subtotal)}</span></div>
+        <div class="form-field" style="margin-top:14px"><label>Email for your receipt</label>
+          <input id="buyerEmail" type="email" placeholder="you@email.com" autocomplete="email"></div>
+        <div id="checkoutArea"></div></aside>
+    </div></div>`);
+  $$("[data-rm]").forEach(b=>b.onclick=()=>{const parts=b.dataset.rm.split("|");Cart.remove(parts[0],parts[1]);renderCart();});
+  mountCheckout(subtotal);
+}
+function defaultsOf(meta){return Object.fromEntries(Object.entries(meta||{}).filter(([k,m])=>m&&m.default).map(([k,m])=>[k,m.default]));}
+function libCard(it,i){
+  const meta=it.variableMeta||{};const vars=parseVars(it.promptText);
+  return `<div class="lib-card" data-li="${i}">
+    <div class="lib-head"><div style="min-width:0"><span class="badge">${esc(catName(it.categoryId))}</span>
+      <h3 style="margin:8px 0 0">${esc(it.title)}</h3>${it.packId?`<div class="muted" style="font-size:.76rem;margin-top:3px">From a pack</div>`:""}</div>
+      <button class="btn btn-primary btn-sm" data-copy="${i}">${icon("copy")} Copy</button></div>
+    ${vars.length?`<div class="lib-fields">${vars.map(v=>{const m=meta[v.toLowerCase()]||{};
+      return `<div class="field"><label>${esc(m.label||v)}${m.required?' <span class="req">*</span>':''}</label>
+      <input class="lv-input" data-li="${i}" data-key="${esc(v.toLowerCase())}" value="${esc(m.default||"")}" placeholder="${esc(m.example||("Enter "+v.toLowerCase()+"…"))}"></div>`;}).join("")}</div>`:""}
+    <div class="viewer" style="margin-top:14px"><div class="viewer-head"><span class="vh-title">${icon("sparkles")} Your prompt</span></div>
+      <div class="viewer-body" id="lv-view-${i}">${highlightPrompt(it.promptText,defaultsOf(meta))}</div></div></div>`;
+}
+function renderLibrary(){
+  setPageMeta("Your Library — PromptLab");
+  const items=Library.items();
+  if(!items.length){
+    view(`<section class="section"><div class="container"><div class="success-wrap">
+      <div class="success-ico" style="background:rgba(77,163,255,.12);color:var(--blue-ink)">${icon("rocket")}</div>
+      <h1 style="font-size:2rem">Your Library is empty</h1>
+      <p class="lead" style="margin:14px auto 22px">Prompts and packs you buy unlock here — fill in the variables and copy them anytime.</p>
+      <div class="hero-cta" style="justify-content:center"><a class="btn btn-primary btn-lg" href="#/browse">Browse prompts</a></div>
+    </div></div></section>`);return;
+  }
+  view(`<div class="container" style="padding:32px 0"><h1>Your Library</h1>
+    <p class="muted" style="margin-bottom:24px">${items.length} purchased item${items.length===1?"":"s"} · saved on this device</p>
+    <div class="lib-list">${items.map((it,i)=>libCard(it,i)).join("")}</div>
+    <p class="muted mt-l" style="font-size:.82rem">${icon("lock")} Saved to this browser. Cross-device access needs an account — coming soon.</p>
+  </div></div>`);
+  items.forEach((it,i)=>{
+    const v=$("#lv-view-"+i);const inputs=$$(`.lv-input[data-li="${i}"]`);
+    const values=()=>{const o={};inputs.forEach(inp=>{const val=inp.value.trim();if(val)o[inp.dataset.key]=val;});return o;};
+    const refresh=()=>{if(v)v.innerHTML=highlightPrompt(it.promptText,values());};
+    inputs.forEach(inp=>inp.addEventListener("input",refresh));
+    const cp=$(`[data-copy="${i}"]`);
+    if(cp)cp.onclick=async()=>{const text=applyVars(it.promptText,values());
+      try{await navigator.clipboard.writeText(text);}catch(e){const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(_){}ta.remove();}
+      cp.innerHTML=`${icon("check")} Copied!`;toast("Prompt copied");track("library_copy",{id:it.id});setTimeout(()=>cp.innerHTML=`${icon("copy")} Copy`,1600);};
+  });
+}
+function renderSuccess(q){
+  const type=q.get("type");
+  if(type==="custom"){
+    view(`<section class="section"><div class="container"><div class="success-wrap">
+      <div class="success-ico">${icon("check")}</div>
+      <h1 style="font-size:clamp(1.7rem,3.2vw,2.3rem)">Request received</h1>
+      <p class="lead" style="margin:14px auto 26px">Thanks for your custom prompt request — we'll review it and get back to you ${esc(cfg().responseTime||"shortly")}. Keep an eye on your inbox.</p>
+      <div class="hero-cta" style="justify-content:center"><a class="btn btn-primary btn-lg" href="#/browse">Browse prompts</a>
+        <a class="btn btn-secondary btn-lg" href="#/">Back home</a></div></div></div></section>`);return;
+  }
+  let last=null;try{last=JSON.parse(sessionStorage.getItem("pl_last_order")||"null");}catch(e){}
+  const order=last&&last.order;const items=(last&&last.items)||[];
   view(`<section class="section"><div class="container"><div class="success-wrap">
     <div class="success-ico">${icon("check")}</div>
-    <h1 style="font-size:clamp(1.7rem,3.2vw,2.3rem)">${title}</h1>
-    <p class="lead" style="margin:14px auto 26px">${msg}</p>
-    <div class="hero-cta" style="justify-content:center">${extra}
-      <a class="btn btn-primary btn-lg" href="#/browse">Browse more prompts</a>
-      <a class="btn btn-secondary btn-lg" href="#/">Back home</a></div>
+    <h1 style="font-size:clamp(1.7rem,3.2vw,2.3rem)">Payment received</h1>
+    <p class="lead" style="margin:14px auto 22px">${order?`Order <b>#${esc(String(order.id||"").slice(-8))}</b> confirmed${order.amount?` · ${money(order.amount)}`:""}. Your ${items.length||""} item${items.length===1?"":"s"} ${items.length===1?"is":"are"} unlocked in your Library.`:"Your purchase is confirmed and unlocked in your Library."}</p>
+    ${items.length?`<div class="receipt">${items.map(i=>`<div class="receipt-row">${icon("check")} <span>${esc(i.title)}</span></div>`).join("")}</div>`:""}
+    <div class="hero-cta" style="justify-content:center;margin-top:6px">
+      <a class="btn btn-primary btn-lg" href="#/library">${icon("rocket")} Open your Library</a>
+      <a class="btn btn-secondary btn-lg" href="#/browse">Browse more</a></div>
   </div></div></section>`);
-  const ca=$("#copyAccess");
-  if(ca&&id){const item=promptById(id);ca.onclick=async()=>{try{await navigator.clipboard.writeText(item.promptText);}catch(e){}ca.innerHTML=`${icon("check")} Copied!`;toast("Prompt copied");};}
 }
 
 /* ========================= VIEW: 404 ========================= */
@@ -1912,6 +2147,8 @@ function router(){
     else if(a==="prompt")renderPrompt(seg[1]);
     else if(a==="custom")renderCustom();
     else if(a==="pricing")renderPricing();
+    else if(a==="cart")renderCart();
+    else if(a==="library")renderLibrary();
     else if(a==="about")renderAbout();
     else if(a==="faq")renderFaq();
     else if(a==="contact")renderContact();
@@ -1934,36 +2171,35 @@ function initAdminAccess(){
 }
 function openAdminAuth(){
   if(State.admin){location.hash="#/admin";return;}
-  const fb=FIREBASE_ENABLED;
+  const needEmail=FIREBASE_ENABLED&&!CONFIG.adminEmail; // only if no shared account configured
   openModal(`<button class="icon-btn m-close" data-close>${icon("close")}</button>
     <div style="text-align:center;margin-bottom:10px"><div class="cat-ico" style="margin:0 auto 12px;width:50px;height:50px">${icon("lock")}</div>
       <h3>Admin access</h3><p class="muted" style="font-size:.86rem">Authorized owners only.</p></div>
-    <div id="authErr" class="hide"><p style="color:var(--danger);font-size:.84rem;text-align:center;margin:0 0 10px">Incorrect credentials. Try again.</p></div>
-    ${fb?`<div class="form-field"><label>Email</label><input id="adEmail" type="email" placeholder="owner@yourdomain.com"></div>`:""}
-    <div class="form-field"><label>Password</label><input id="adPass" type="password" placeholder="••••••••"></div>
+    <div id="authErr" class="hide"><p style="color:var(--danger);font-size:.84rem;text-align:center;margin:0 0 10px">Incorrect password. Try again.</p></div>
+    ${needEmail?`<div class="form-field"><label>Email</label><input id="adEmail" type="email" placeholder="admin@yourdomain.com"></div>`:""}
+    <div class="form-field"><label>Password</label><input id="adPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
     <button class="btn btn-primary btn-block btn-lg" id="adLogin">Unlock dashboard</button>
-    ${fb?`<p class="muted center" style="font-size:.76rem;margin:12px 0 0">${icon("shield")} Secured by Firebase Authentication.</p>`:`<p class="muted center" style="font-size:.76rem;margin:12px 0 0">Local preview — set <code>CONFIG.localPassword</code> to enable, or connect Firebase for production auth.</p>`}`);
+    <p class="muted center" style="font-size:.76rem;margin:12px 0 0">${FIREBASE_ENABLED?`${icon("shield")} Shared owner login, secured by Firebase.`:`${icon("shield")} Shared owner password.`}</p>`);
   const pass=$("#adPass");setTimeout(()=>pass&&pass.focus(),60);
   pass.addEventListener("keydown",e=>{if(e.key==="Enter")$("#adLogin").click();});
   $("#adLogin").onclick=adminLogin;
 }
 async function adminLogin(){
   const btn=$("#adLogin"),pass=$("#adPass").value;
-  const fail=()=>{const e=$("#authErr");if(e)e.classList.remove("hide");};
+  const fail=msg=>{const e=$("#authErr");if(e){if(msg)e.querySelector("p").textContent=msg;e.classList.remove("hide");}};
   if(FIREBASE_ENABLED){
-    const email=($("#adEmail")||{}).value?.trim()||"";
+    const email=CONFIG.adminEmail||(($("#adEmail")||{}).value||"").trim();
+    if(!email){fail("Set CONFIG.adminEmail to the shared admin login.");return;}
     btn.disabled=true;btn.textContent="Verifying…";
     try{
-      const cred=await State.db._au.signInWithEmailAndPassword(State.db._auth,email,pass);
-      const snap=await State.db._fs.getDoc(State.db._fs.doc(State.db._db,"admins",cred.user.uid));
-      if(!snap.exists()){await State.db._au.signOut(State.db._auth);throw new Error("no role");}
-      State.admin={name:snap.data().name||email,role:snap.data().role||"owner1",email,loginAt:Date.now()};
-      closeModal();location.hash="#/admin";
-    }catch(e){btn.disabled=false;btn.textContent="Unlock dashboard";fail();}
+      await State.db._au.signInWithEmailAndPassword(State.db._auth,email,pass);
+      // The shared admin account is the only login, so being signed in = being an owner.
+      State.admin={name:"Owner",role:"owner1",email,loginAt:Date.now()};
+      closeModal();location.hash="#/admin";toast("Welcome back, owner.","success");
+    }catch(e){btn.disabled=false;btn.textContent="Unlock dashboard";fail("Incorrect password, or the shared admin login isn't set up yet.");}
   }else{
-    if(!CONFIG.localPassword){const e=$("#authErr");if(e){e.querySelector("p").textContent="Local admin is disabled. Connect Firebase for production, or set CONFIG.localPassword for local preview.";e.classList.remove("hide");}return;}
-    if(pass===CONFIG.localPassword){State.admin={name:"Owner",role:"owner1",email:cfg().businessEmail,loginAt:Date.now()};closeModal();location.hash="#/admin";toast("Welcome back, owner.","success");}
-    else fail();
+    if(pass===CONFIG.adminPassword){State.admin={name:"Owner",role:"owner1",email:cfg().businessEmail,loginAt:Date.now()};closeModal();location.hash="#/admin";toast("Welcome back, owner.","success");}
+    else fail("Incorrect password. Try again.");
   }
 }
 function renderAdminRoute(){
@@ -2037,15 +2273,17 @@ function renderAdminSection(){
 
 /* ---------- OVERVIEW ---------- */
 function adminOverview(){
-  const prompts=State.db.getPrompts(),packs=State.db.getPacks(),purchases=State.db.getPurchases(),reqs=State.db.getRequests();
-  const revenue=purchases.filter(p=>p.paymentStatus==="completed").reduce((s,p)=>s+(p.amount||0),0);
+  State.db.ensureOrdersSub&&State.db.ensureOrdersSub();
+  const prompts=State.db.getPrompts(),packs=State.db.getPacks(),orders=State.db.getOrders(),reqs=State.db.getRequests();
+  const revenue=orders.filter(o=>o.status==="paid").reduce((s,o)=>s+(o.amount||0),0);
   const events=Store.json("pl_events",[]);
   const views=events.filter(e=>e.event==="prompt_view").length;
-  const buyClicks=events.filter(e=>e.event==="prompt_purchase_click"||e.event==="pack_purchase_click").length;
+  const buyClicks=events.filter(e=>e.event==="purchase").length;
   const conv=views?((buyClicks/views)*100).toFixed(1)+"%":"—";
   const metric=(label,val,ic)=>`<div class="metric"><div class="m-label">${icon(ic)} ${label}</div><div class="row sp-between"><div class="m-val">${val}</div></div></div>`;
+  const orderTitle=o=>{const l=(o.lines||[])[0];const more=(o.lines||[]).length-1;return (l?esc(l.title):"Order")+(more>0?` +${more} more`:"");};
   const activity=[...reqs.map(r=>({t:r.createdAt,h:`New custom request from <b>${esc(r.name)}</b> · ${esc(r.industry||r.projectType||"")}`})),
-    ...purchases.map(p=>({t:p.createdAt,h:`Purchase: <b>${esc((promptById(p.itemId)||packById(p.itemId)||{}).title||p.itemId)}</b> · ${money(p.amount)} (${esc(p.paymentStatus)})`}))]
+    ...orders.map(o=>({t:o.createdAt,h:`Order: <b>${orderTitle(o)}</b> · ${money(o.amount)} (${esc(o.status||"paid")})`}))]
     .sort((a,b)=>b.t-a.t).slice(0,8);
   return `${adminTop("Overview")}
     ${FIREBASE_ENABLED?"":`<div class="admin-banner">${icon("bolt")} Local preview — changes live in this browser only. Add your Firebase config in <code>index.html</code> to go live for real visitors.</div>`}
@@ -2056,7 +2294,7 @@ function adminOverview(){
     <div class="metric-grid">
       ${metric("Total prompts",prompts.length,"sparkles")}
       ${metric("Total packs",packs.length,"box")}
-      ${metric("Purchases",purchases.length,"cart")}
+      ${metric("Orders",orders.length,"cart")}
       ${metric("Revenue (confirmed)",money(revenue),"chart")}
       ${metric("Open requests",reqs.filter(r=>r.status==="new"||r.status==="reviewing"||r.status==="in-progress").length,"mail")}
       ${metric("Click→view conv.",conv,"bolt")}</div>
@@ -2086,7 +2324,7 @@ function adminPrompts(){
     <div class="admin-card"><div style="overflow-x:auto"><table class="tbl"><thead><tr>
       <th>Title</th><th>Category</th><th>Price</th><th>Status</th><th>Purchases</th><th>Featured</th><th></th></tr></thead><tbody>
       ${prompts.map(p=>`<tr>
-        <td><b>${esc(p.title)}</b><div class="muted" style="font-size:.76rem">${parseVars(p.promptText).length} vars · ${p.difficulty}</div></td>
+        <td><b>${esc(p.title)}</b><div class="muted" style="font-size:.76rem">${(p.variables||[]).length} vars · ${p.difficulty}</div></td>
         <td>${esc(catName(p.categoryId))}</td><td>${money(p.price)}</td>
         <td><span class="status-pill status-${p.status}">${p.status}</span></td>
         <td>${p.purchaseCount||0}</td>
@@ -2099,9 +2337,10 @@ function adminPrompts(){
 }
 function wirePrompts(){
   const n=$("#newPrompt");if(n)n.onclick=()=>openPromptEditor();
-  $$("[data-edit]").forEach(b=>b.onclick=()=>openPromptEditor(promptById(b.dataset.edit)));
-  $$("[data-feat]").forEach(b=>b.onclick=async()=>{const p=promptById(b.dataset.feat);p.featured=!p.featured;await State.db.savePrompt(p);toast(p.featured?"Featured":"Unfeatured","success");});
-  $$("[data-dup]").forEach(b=>b.onclick=async()=>{const p=promptById(b.dataset.dup);const c={...p,id:uid("p"),title:p.title+" (copy)",featured:false,purchaseCount:0};await State.db.savePrompt(c);toast("Prompt duplicated");});
+  const withContent=async base=>{const c=await State.db.getPromptContent(base.id)||{};return {...base,promptText:c.promptText||"",variableMeta:c.variableMeta||{}};};
+  $$("[data-edit]").forEach(b=>b.onclick=async()=>{openPromptEditor(await withContent(promptById(b.dataset.edit)));});
+  $$("[data-feat]").forEach(b=>b.onclick=async()=>{const full=await withContent(promptById(b.dataset.feat));full.featured=!full.featured;await State.db.savePrompt(full);toast(full.featured?"Featured":"Unfeatured","success");});
+  $$("[data-dup]").forEach(b=>b.onclick=async()=>{const full=await withContent(promptById(b.dataset.dup));const c={...full,id:uid("p"),title:full.title+" (copy)",featured:false,purchaseCount:0};await State.db.savePrompt(c);toast("Prompt duplicated");});
   $$("[data-del]").forEach(b=>b.onclick=()=>confirmDelete("prompt",b.dataset.del,promptById(b.dataset.del).title));
 }
 const AI_LIST=["ChatGPT","Claude","Gemini","Perplexity","Other"];
