@@ -22,18 +22,19 @@ No individual accounts. One shared password unlocks the dashboard.
 ## 3. Payments — pick ONE path
 
 ### ⭐ Simple path (recommended to start — no backend, no Blaze plan)
-Square hosts the payment; buyers come back and their prompts unlock.
-1. Square Dashboard → **Online → Payment Links → Create.** Make a link (e.g. a "PromptLab order"). Under **After payment**, set **redirect to** `https://USERNAME.github.io/REPO/#/success` (your live site URL + `#/success`). This redirect is what unlocks the prompts on return — don't skip it.
-2. Add that link to your store — **easiest is the dashboard** (no code editing): open the site, press **Ctrl + Alt + Shift + L**, then **Site Config → Payments → Default Square checkout link** → paste → **Save changes**. (Or hard-code it in `index.html`: `square: { checkoutUrl: "https://square.link/u/XXXX", appId: "", locationId: "" }`.)
-3. Done — checkout now shows **“Pay with Square,”** sends buyers to Square, and unlocks their Library when they return.
+The store uses **Buy now** on each prompt and pack — no cart. Because Square payment links are a **fixed amount**, this is the clean fit: **one Square link per item, priced to match.**
+1. Square Dashboard → **Online → Payment Links → Create** a link for a prompt (set the amount to that prompt's price). Under **After payment**, set **redirect to** `https://USERNAME.github.io/REPO/#/success` (your live site URL + `#/success`). This redirect is what unlocks the prompt on return — don't skip it. Repeat per prompt/pack (or reuse links across items that share a price).
+2. Paste each link into that item: log in (**Ctrl + Alt + Shift + L**) → **Prompts/Packs → edit → Square checkout link → Save.** You can also set one fallback in **Site Config → Payments → Default Square checkout link** for anything without its own link.
+3. Done — each item's **Buy now** sends the buyer to that Square link, and the prompt unlocks in their Library when they return.
 
-> **Honest trade‑offs of the simple path** (totally fine for getting started):
-> - Square Payment Links are a **fixed amount**, so the cleanest fit is a flat price per prompt/pack (or one link per price point). The app always shows the correct cart total; just point each price at a matching link, or keep one price.
-> - Delivery happens **on return from Square** (no server verifying each payment), and the order is recorded in your **Square dashboard** (not in the app's Orders tab).
+> **Honest trade‑offs of the simple path** (fine for getting started):
+> - It's **one fixed-price link per item** (that's why Buy-now replaced the cart — a cart's variable total can't map to a fixed Square link without a backend).
+> - Delivery happens **on return from Square** (no server verifying each payment), and sales are recorded in your **Square dashboard** (not the app's Orders tab).
 > - Because there's no server to hand out the prompt, the text must be **readable by the app to deliver it** (rules below). The product page shows **no prompt text** — your real concern — but a technical user could read it from the database. The advanced path closes that gap.
+> - The cart is still in the code (disabled). Re-enabling it only makes sense alongside the advanced path, which can charge a real cart total.
 
 ### 🔒 Advanced path (optional — server‑verified orders + fully locked content)
-Deploy the included function; payments are charged & verified server‑side, orders are recorded in‑app, and prompt text is never readable until paid.
+Deploy the included function; payments are charged & verified server‑side, orders are recorded in‑app, prompt text is never readable until paid, and dynamic totals (e.g. a re‑enabled cart) work.
 ```bash
 npm install -g firebase-tools && firebase login
 firebase init functions           # pick promptlab-d8302; JavaScript; keep functions/

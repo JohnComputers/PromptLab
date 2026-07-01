@@ -1220,7 +1220,6 @@ function buildShell(){
     <div class="nav-actions">
       <button class="icon-btn" id="searchBtn" title="Search prompts" aria-label="Search">${icon("search")}</button>
       <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle dark mode">${icon(State.theme==="dark"?"sun":"moon")}</button>
-      <button class="icon-btn" id="cartBtn" title="Cart" aria-label="Cart" style="position:relative">${icon("cart")}<span class="cart-count" id="cartCount" style="display:none">0</span></button>
       <a class="btn btn-primary btn-sm" href="#/browse">Get Started</a>
       <button class="icon-btn hamburger" id="hamburger" aria-label="Menu">${icon("menu")}</button>
     </div></div></header>
@@ -1233,8 +1232,6 @@ function buildShell(){
     <nav id="drawerLinks">${navLinks()}</nav>
     <a class="btn btn-primary btn-block mt-m" href="#/browse">Get Started</a></aside>`;
   $("#themeBtn").onclick=toggleTheme;
-  $("#cartBtn").onclick=()=>{location.hash="#/cart";};
-  refreshCartBadge();Cart.onChange(refreshCartBadge);
   $("#searchBtn").onclick=()=>{location.hash="#/browse";setTimeout(()=>{const s=$("#browseSearch");if(s){s.focus();s.scrollIntoView({block:"center"});}},140);};
   const dr=$("#drawer"),bg=$("#drawerBg");
   const closeDr=()=>{dr.classList.remove("open");bg.classList.remove("open");};
@@ -1251,7 +1248,7 @@ function refreshCartBadge(){const n=Cart.count();const el=$("#cartCount");if(el)
 /* ========================= CARD BUILDERS ========================= */
 function promptCard(p){
   const vars=(p.variables||[]).slice(0,3);
-  const inCart=Cart.has(p.id,"prompt");
+  const owned=Library.has(p.id);
   return `<article class="p-card reveal" data-go="#/prompt/${p.id}">
     <div class="p-card-top"><div class="p-tags"><span class="badge">${esc(catName(p.categoryId))}</span></div>
       <span class="badge price">${money(p.price)}</span></div>
@@ -1261,7 +1258,7 @@ function promptCard(p){
     <div class="p-foot"><div class="p-meta"><span class="badge diff-${p.difficulty}">${p.difficulty}</span>
       <span class="ai-dots">${(p.aiCompatibility||[]).slice(0,2).map(a=>`<span class="ai-dot">${esc(a)}</span>`).join("")}</span></div>
       <div class="p-actions"><button class="btn btn-secondary btn-sm" data-preview="${p.id}">Preview</button>
-      ${inCart?`<a class="btn btn-secondary btn-sm" href="#/cart">In cart ✓</a>`:`<button class="btn btn-primary btn-sm" data-add="${p.id}">Add to cart</button>`}</div></div></article>`;
+      ${owned?`<a class="btn btn-secondary btn-sm" href="#/library">In Library ✓</a>`:`<button class="btn btn-primary btn-sm" data-buynow="${p.id}">Buy now</button>`}</div></div></article>`;
 }
 function packCard(pk){
   const n=(pk.promptIds||[]).length;
@@ -1272,7 +1269,7 @@ function packCard(pk){
     <div class="pk-count">${n} prompts included · save vs. buying individually</div>
     <div class="pk-price">${money(pk.price)} <small>/ pack</small></div>
     <div class="pk-foot"><a class="btn btn-secondary btn-block" href="#/pack/${pk.id}">View Pack</a>
-      ${Cart.has(pk.id,"pack")?`<a class="btn btn-secondary btn-block" href="#/cart">In cart ✓</a>`:`<button class="btn btn-primary btn-block" data-addpack="${pk.id}">Add to cart</button>`}</div></article>`;
+      ${Library.has(pk.id)?`<a class="btn btn-secondary btn-block" href="#/library">In Library ✓</a>`:`<button class="btn btn-primary btn-block" data-buynowpack="${pk.id}">Buy now</button>`}</div></article>`;
 }
 function categoryCard(c){
   return `<a class="cat-card reveal" href="#/category/${c.id}">
@@ -1295,10 +1292,11 @@ document.addEventListener("click",e=>{
   const add=e.target.closest("[data-add]"),addPack=e.target.closest("[data-addpack]"),
         buynow=e.target.closest("[data-buynow]"),buynowPack=e.target.closest("[data-buynowpack]"),
         prev=e.target.closest("[data-preview]"),go=e.target.closest("[data-go]");
+  // data-add / data-addpack are dormant (cart disabled) but kept for easy re-enable.
   if(add){e.preventDefault();e.stopPropagation();if(addToCart(add.dataset.add,"prompt"))add.textContent="Added ✓";return;}
   if(addPack){e.preventDefault();e.stopPropagation();if(addToCart(addPack.dataset.addpack,"pack"))addPack.textContent="Added ✓";return;}
-  if(buynow){e.preventDefault();e.stopPropagation();Cart.add(buynow.dataset.buynow,"prompt");location.hash="#/cart";return;}
-  if(buynowPack){e.preventDefault();e.stopPropagation();Cart.add(buynowPack.dataset.buynowpack,"pack");location.hash="#/cart";return;}
+  if(buynow){e.preventDefault();e.stopPropagation();location.hash="#/checkout/prompt/"+buynow.dataset.buynow;return;}
+  if(buynowPack){e.preventDefault();e.stopPropagation();location.hash="#/checkout/pack/"+buynowPack.dataset.buynowpack;return;}
   if(prev){e.preventDefault();e.stopPropagation();showPreview(promptById(prev.dataset.preview));return;}
   if(go&&!e.target.closest("button")&&!e.target.closest("a")){location.hash=go.dataset.go;}
 });
@@ -1313,7 +1311,7 @@ function showPreview(p){
       <div class="output-box" style="border:none;border-radius:0;margin:0;background:transparent">${esc(p.previewOutput||"The full prompt unlocks in your Library after purchase.")}</div></div>
     <div class="row sp-between mt-m"><span class="badge price" style="font-size:.9rem">${money(p.price)}</span>
       <div class="row"><a class="btn btn-secondary" href="#/prompt/${p.id}" data-close>Open</a>
-      <button class="btn btn-primary" data-add="${p.id}" data-close>Add to cart</button></div></div>`);
+      ${Library.has(p.id)?`<a class="btn btn-primary" href="#/library" data-close>In Library ✓</a>`:`<button class="btn btn-primary" data-buynow="${p.id}" data-close>Buy now</button>`}</div></div>`);
 }
 
 /* ========================= SECURE CHECKOUT + ANALYTICS =========================
@@ -1747,9 +1745,7 @@ function renderPack(id){
         <li>${icon("check")} Works with ChatGPT, Claude &amp; Gemini</li>
         <li>${icon("check")} Lifetime access — buy once</li></ul></div>
       ${Library.has(pk.id)?`<a class="btn btn-primary btn-block btn-lg" href="#/library">${icon("check")} Open in your Library</a>`
-        :Cart.has(pk.id,"pack")?`<a class="btn btn-primary btn-block btn-lg" href="#/cart">${icon("cart")} In cart — checkout</a>`
-        :`<button class="btn btn-primary btn-block btn-lg" data-addpack="${pk.id}">${icon("cart")} Add to cart</button>
-          <button class="btn btn-secondary btn-block" data-buynowpack="${pk.id}" style="margin-top:10px">Buy now</button>`}
+        :`<button class="btn btn-primary btn-block btn-lg" data-buynowpack="${pk.id}">${icon("cart")} Buy now — ${money(pk.price)}</button>`}
       <div class="secure">${secureNote()}</div>
     </div></div>
   </div></div>
@@ -1776,16 +1772,19 @@ function relatedPrompts(p){
   }).sort((a,b)=>b.s-a.s).slice(0,3).map(o=>o.x);
 }
 function secureNote(){return (FIREBASE_ENABLED&&CONFIG.checkoutFunctionUrl)?`${icon("shield")} Payment verified server-side before delivery`:`${icon("shield")} Secure checkout powered by Square`;}
-/* The Square payment link can be set in the dashboard (Site Config → Payments) or
-   hard-coded in CONFIG.square.checkoutUrl. Dashboard value wins. */
-function checkoutLink(){try{return ((cfg().square&&cfg().square.defaultCheckoutUrl)||CONFIG.square.checkoutUrl||"").trim();}catch(e){return (CONFIG.square.checkoutUrl||"").trim();}}
+/* The Square payment link: a product's own link wins, then the dashboard default
+   (Site Config → Payments), then CONFIG.square.checkoutUrl. */
+function checkoutLink(item){try{
+  if(item&&item.checkoutUrl&&item.checkoutUrl.trim())return item.checkoutUrl.trim();
+  return ((cfg().square&&cfg().square.defaultCheckoutUrl)||CONFIG.square.checkoutUrl||"").trim();
+}catch(e){return ((item&&item.checkoutUrl)||CONFIG.square.checkoutUrl||"").trim();}}
 function renderPrompt(id){
   const p=promptById(id);
   if(!p){renderNotFound("That prompt is no longer available.");return;}
   track("prompt_view",{id:p.id});
   setJsonLd(ldProduct(p));setPageMeta(`${p.title} — PromptLab`,p.description);
   const vars=p.variables||[];
-  const owned=Library.has(p.id),inCart=Cart.has(p.id,"prompt");
+  const owned=Library.has(p.id);
   const related=relatedPrompts(p);
   view(`<div class="container"><div class="crumbs">
     <a href="#/">Home</a><span class="sep">/</span><a href="#/categories">Categories</a><span class="sep">/</span>
@@ -1828,9 +1827,7 @@ function renderPrompt(id){
         <li>${icon("check")} Tested on ${(p.aiCompatibility||[]).join(", ")||"major models"}</li>
         <li>${icon("check")} Lifetime access in your Library</li></ul></div>
       ${owned?`<a class="btn btn-primary btn-block btn-lg" href="#/library">${icon("check")} Open in your Library</a>`
-        :inCart?`<a class="btn btn-primary btn-block btn-lg" href="#/cart">${icon("cart")} In cart — checkout</a>`
-        :`<button class="btn btn-primary btn-block btn-lg" data-add="${p.id}">${icon("cart")} Add to cart</button>
-          <button class="btn btn-secondary btn-block" data-buynow="${p.id}" style="margin-top:10px">Buy now</button>`}
+        :`<button class="btn btn-primary btn-block btn-lg" data-buynow="${p.id}">${icon("cart")} Buy now — ${money(p.price)}</button>`}
       <div class="secure">${secureNote()}</div>
       <div class="buy-custom">Need something more specific? <a href="#/custom">Request a custom prompt →</a></div>
     </div></div>
@@ -2029,11 +2026,11 @@ function loadSquareSdk(){return new Promise((res,rej)=>{
   const s=document.createElement("script");s.src="https://web.squarecdn.com/v1/square.js";
   s.onload=()=>window.Square?res(window.Square):rej(new Error("Square unavailable"));
   s.onerror=()=>rej(new Error("Square SDK failed to load"));document.head.appendChild(s);});}
-async function completeOrder(buyer,sourceId,btn){
+async function completeOrder(items,buyer,sourceId,btn){
   const restore=btn?btn.innerHTML:"";
   if(btn){btn.disabled=true;btn.innerHTML=`${icon("bolt")} Processing…`;}
   try{
-    const res=await processCheckout(Cart.items(),buyer,sourceId);
+    const res=await processCheckout(items,buyer,sourceId);
     if(!res||!res.order)throw new Error("No confirmation returned.");
     Library.addDelivered(res.order,res.items||[]);
     try{sessionStorage.setItem("pl_last_order",JSON.stringify({order:res.order,items:(res.items||[]).map(i=>({id:i.id,title:i.title,type:i.type}))}));}catch(e){}
@@ -2041,14 +2038,17 @@ async function completeOrder(buyer,sourceId,btn){
     Cart.clear();location.hash="#/success";
   }catch(e){toast(e.message||"Checkout failed.","error");if(btn){btn.disabled=false;btn.innerHTML=restore;}}
 }
-function mountCheckout(subtotal){
+/* Payment surface for an explicit list of `items`. Pass the single product as `item`
+   so we can use that product's own Square link. Drives Buy-now (one item) today, and
+   still works for the dormant multi-item cart if it's ever re-enabled. */
+function mountCheckout(items,subtotal,item){
   const area=$("#checkoutArea");if(!area)return;
   const getBuyer=()=>({email:(($("#buyerEmail")||{}).value||"").trim()});
   // 1) Local sandbox → built-in emulator (no real charge)
   if(State.local){
     area.innerHTML=`<button class="btn btn-primary btn-block btn-lg" id="payBtn" style="margin-top:4px">${icon("bolt")} Complete order — ${money(subtotal)}</button>
       <p class="muted center" style="font-size:.74rem;margin:8px 0 0">Local preview — no real charge. Connect Square for live payments.</p>`;
-    $("#payBtn").onclick=()=>completeOrder(getBuyer(),null,$("#payBtn"));return;
+    $("#payBtn").onclick=()=>completeOrder(items,getBuyer(),null,$("#payBtn"));return;
   }
   // 2) ADVANCED: Cloud Function + Web Payments SDK (in-page card, server-verified)
   if(paymentsConfigured()){
@@ -2061,7 +2061,7 @@ function mountCheckout(subtotal){
         const card=await payments.card();await card.attach("#sqCard");payBtn.disabled=false;
         payBtn.onclick=async()=>{payBtn.disabled=true;
           try{const r=await card.tokenize();
-            if(r.status==="OK")await completeOrder(getBuyer(),r.token,payBtn);
+            if(r.status==="OK")await completeOrder(items,getBuyer(),r.token,payBtn);
             else{toast("Please check your card details.","error");payBtn.disabled=false;}
           }catch(e){toast("Payment error. Try again.","error");payBtn.disabled=false;}};
       }catch(e){area.innerHTML=`<div class="admin-banner">${icon("lock")} Could not start Square — verify appId/locationId.</div>`;}
@@ -2069,20 +2069,26 @@ function mountCheckout(subtotal){
     return;
   }
   // 3) SIMPLE (default): Square hosted checkout link — no backend needed
-  const link=checkoutLink();
+  const link=checkoutLink(item);
   if(link){
     area.innerHTML=`<button class="btn btn-primary btn-block btn-lg" id="payBtn">${icon("cart")} Pay with Square — ${money(subtotal)}</button>
-      <p class="muted center" style="font-size:.74rem;margin:8px 0 0">You'll pay securely on Square, then come right back here and your prompts unlock automatically.</p>`;
+      <p class="muted center" style="font-size:.74rem;margin:8px 0 0">You'll pay securely on Square, then come right back here and your prompt unlocks automatically.</p>`;
     $("#payBtn").onclick=()=>{
       const buyer=getBuyer();
-      try{sessionStorage.setItem("pl_pending_cart",JSON.stringify({cart:Cart.items(),buyer,amount:subtotal,ts:Date.now()}));}catch(e){}
-      track("checkout_redirect",{amount:subtotal,items:Cart.count()});
+      try{sessionStorage.setItem("pl_pending_cart",JSON.stringify({cart:items,buyer,amount:subtotal,ts:Date.now()}));}catch(e){}
+      track("checkout_redirect",{amount:subtotal,items:items.length});
       window.location.href=link;
     };return;
   }
   // 4) Nothing configured yet
-  area.innerHTML=`<div class="admin-banner" style="margin-top:10px">${icon("lock")} Almost there — add your Square payment link in the dashboard (Site Config → Payments), or in <code>CONFIG.square.checkoutUrl</code> (SETUP.md).</div>`;
+  area.innerHTML=`<div class="admin-banner" style="margin-top:10px">${icon("lock")} Almost there — add a Square payment link for this item in its editor (or a default in Site Config → Payments), or set <code>CONFIG.square.checkoutUrl</code> (SETUP.md).</div>`;
 }
+/* ── CART PAGE (DORMANT) ──────────────────────────────────────────────
+   The cart UX is intentionally disabled: the store uses per-item "Buy now"
+   instead (Square payment links are fixed-amount, which doesn't suit a cart
+   with a dynamic total). All cart code is kept intact so it can be switched
+   back on later — re-add the nav cart button + "Add to cart" buttons and this
+   page + the #/cart route light up again. Not linked anywhere right now. */
 function renderCart(){
   setPageMeta("Your cart — PromptLab");
   const rows=Cart.items().map(ci=>{
@@ -2118,7 +2124,41 @@ function renderCart(){
         <div id="checkoutArea"></div></aside>
     </div></div>`);
   $$("[data-rm]").forEach(b=>b.onclick=()=>{const parts=b.dataset.rm.split("|");Cart.remove(parts[0],parts[1]);renderCart();});
-  mountCheckout(subtotal);
+  mountCheckout(Cart.items(),subtotal);
+}
+/* ── BUY NOW: single-item checkout ─────────────────────────────────── */
+function renderCheckout(type,id){
+  const isPack=type==="pack";
+  const it=isPack?packById(id):promptById(id);
+  if(!it){renderNotFound();return;}
+  if(Library.has(it.id)){location.hash="#/library";return;}   // already owned → Library
+  const price=it.price||0;
+  const sub=isPack?`${(it.promptIds||[]).length} prompts included`:catName(it.categoryId);
+  setPageMeta("Checkout — "+it.title+" — PromptLab");
+  view(`<div class="container" style="padding:32px 0;max-width:820px">
+    <a class="btn btn-secondary btn-sm" href="#/${type}/${id}">${icon("arrow")} Back</a>
+    <h1 style="margin:14px 0 4px">Checkout</h1>
+    <p class="muted" style="margin-bottom:24px">One ${isPack?"pack":"prompt"} — it unlocks in your Library right after payment.</p>
+    <div class="cart-grid">
+      <div class="cart-items">
+        <div class="cart-row">
+          <div class="cart-row-ico">${icon(isPack?"box":"sparkles")}</div>
+          <div style="flex:1;min-width:0"><div class="cart-row-title">${esc(it.title)}</div>
+            <div class="muted" style="font-size:.8rem">${esc(sub)} · ${isPack?"Pack":"Single prompt"}</div></div>
+          <div class="cart-row-price">${money(price)}</div></div>
+        ${isPack?`<div class="admin-banner" style="margin-top:12px;background:var(--bg-2)">${icon("box")} Includes ${(it.promptIds||[]).length} prompts — all added to your Library.</div>`:""}
+      </div>
+      <aside class="cart-summary buy-panel">
+        <h3 style="margin:0 0 14px">Order summary</h3>
+        <div class="cart-line"><span style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</span><span>${money(price)}</span></div>
+        <div class="cart-line total"><span>Total</span><span>${money(price)}</span></div>
+        <div class="form-field" style="margin-top:14px"><label>Email for your receipt</label>
+          <input id="buyerEmail" type="email" placeholder="you@email.com" autocomplete="email"></div>
+        <div id="checkoutArea"></div>
+        <div class="secure" style="margin-top:12px">${secureNote()}</div>
+      </aside>
+    </div></div>`);
+  mountCheckout([{id:it.id,type}],price,it);
 }
 function defaultsOf(meta){return Object.fromEntries(Object.entries(meta||{}).filter(([k,m])=>m&&m.default).map(([k,m])=>[k,m.default]));}
 function libCard(it,i){
@@ -2233,6 +2273,7 @@ function router(){
     else if(a==="custom")renderCustom();
     else if(a==="pricing")renderPricing();
     else if(a==="cart")renderCart();
+    else if(a==="checkout")renderCheckout(seg[1],seg[2]);
     else if(a==="library")renderLibrary();
     else if(a==="about")renderAbout();
     else if(a==="faq")renderFaq();
