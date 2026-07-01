@@ -22,13 +22,13 @@ No individual accounts. One shared password unlocks the dashboard.
 ## 3. Payments — pick ONE path
 
 ### ⭐ Simple path (recommended to start — no backend, no Blaze plan)
-The store uses **Buy now** on each prompt and pack — no cart. Because Square payment links are a **fixed amount**, this is the clean fit: **one Square link per item, priced to match.**
-1. Square Dashboard → **Online → Payment Links → Create** a link for a prompt (set the amount to that prompt's price). Under **After payment**, set **redirect to** `https://USERNAME.github.io/REPO/#/success` (your live site URL + `#/success`). This redirect is what unlocks the prompt on return — don't skip it. Repeat per prompt/pack (or reuse links across items that share a price).
-2. Paste each link into that item: log in (**Ctrl + Alt + Shift + L**) → **Prompts/Packs → edit → Square checkout link → Save.** You can also set one fallback in **Site Config → Payments → Default Square checkout link** for anything without its own link.
-3. Done — each item's **Buy now** sends the buyer to that Square link, and the prompt unlocks in their Library when they return.
+The store uses **Buy now** on each prompt and pack — no cart. Since your prompts are all one price and your packs are all one price, you only need **two Square links**: one for single prompts, one for packs.
+1. Square Dashboard → **Online → Payment Links → Create** two links: one at **$2** ("Single prompt") and one at **$25** ("Prompt pack"). In **each** link's settings, under **After payment** set **redirect to** `https://USERNAME.github.io/REPO/#/success` (your live site URL + `#/success`). This redirect is what unlocks the purchase on return — don't skip it.
+2. Paste them in the dashboard: log in (**Ctrl + Alt + Shift + L**) → **Site Config → Payments** → put the $2 link in **Single-prompt payment link** and the $25 link in **Pack payment link** → **Save changes.**
+3. Done. A prompt's **Buy now** uses the single-prompt link; a pack's **Buy now** uses the pack link; both unlock in the buyer's Library on return. (Need a one-off differently-priced item later? Give just that item its own link in its editor — it overrides the two defaults.)
 
 > **Honest trade‑offs of the simple path** (fine for getting started):
-> - It's **one fixed-price link per item** (that's why Buy-now replaced the cart — a cart's variable total can't map to a fixed Square link without a backend).
+> - It's **two fixed-price links** (one per price tier) — that's why Buy-now replaced the cart, since a cart's variable total can't map to a fixed Square link without a backend. Mixed prices later = give those items their own links.
 > - Delivery happens **on return from Square** (no server verifying each payment), and sales are recorded in your **Square dashboard** (not the app's Orders tab).
 > - Because there's no server to hand out the prompt, the text must be **readable by the app to deliver it** (rules below). The product page shows **no prompt text** — your real concern — but a technical user could read it from the database. The advanced path closes that gap.
 > - The cart is still in the code (disabled). Re-enabling it only makes sense alongside the advanced path, which can charge a real cart total.

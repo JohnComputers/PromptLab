@@ -946,7 +946,7 @@ const SEED_CONFIG={
   responseTime:"within 24 hours",
   announcementBanner:"",
   pricingDefaults:{prompt:2,pack:25},
-  square:{defaultCheckoutUrl:CONFIG.square.defaultCheckoutUrl||""},
+  square:{promptCheckoutUrl:"",packCheckoutUrl:"",defaultCheckoutUrl:""},
   ownerProfiles:[
     {name:"Alex Rivera",role:"Founder & Prompt Engineer",email:"alex@promptlab.io"},
     {name:"Jordan Lee",role:"Co-Founder & Head of Product",email:"jordan@promptlab.io"}
@@ -1772,11 +1772,16 @@ function relatedPrompts(p){
   }).sort((a,b)=>b.s-a.s).slice(0,3).map(o=>o.x);
 }
 function secureNote(){return (FIREBASE_ENABLED&&CONFIG.checkoutFunctionUrl)?`${icon("shield")} Payment verified server-side before delivery`:`${icon("shield")} Secure checkout powered by Square`;}
-/* The Square payment link: a product's own link wins, then the dashboard default
-   (Site Config → Payments), then CONFIG.square.checkoutUrl. */
-function checkoutLink(item){try{
+/* Square payment link resolution (Buy-now):
+   1) a product's own link (editor override) wins, else
+   2) the type link — Single-prompt link for prompts, Pack link for packs, else
+   3) a generic default (Site Config), else CONFIG.square.checkoutUrl. */
+function checkoutLink(item,type){try{
   if(item&&item.checkoutUrl&&item.checkoutUrl.trim())return item.checkoutUrl.trim();
-  return ((cfg().square&&cfg().square.defaultCheckoutUrl)||CONFIG.square.checkoutUrl||"").trim();
+  const sq=cfg().square||{};
+  if(type==="pack"&&sq.packCheckoutUrl&&sq.packCheckoutUrl.trim())return sq.packCheckoutUrl.trim();
+  if(type==="prompt"&&sq.promptCheckoutUrl&&sq.promptCheckoutUrl.trim())return sq.promptCheckoutUrl.trim();
+  return ((sq.defaultCheckoutUrl)||CONFIG.square.checkoutUrl||"").trim();
 }catch(e){return ((item&&item.checkoutUrl)||CONFIG.square.checkoutUrl||"").trim();}}
 function renderPrompt(id){
   const p=promptById(id);
@@ -2069,7 +2074,9 @@ function mountCheckout(items,subtotal,item){
     return;
   }
   // 3) SIMPLE (default): Square hosted checkout link — no backend needed
-  const link=checkoutLink(item);
+  const types=[...new Set((items||[]).map(i=>i.type))];
+  const oneType=types.length===1?types[0]:undefined;   // Buy-now is always single-type
+  const link=checkoutLink(item,oneType);
   if(link){
     area.innerHTML=`<button class="btn btn-primary btn-block btn-lg" id="payBtn">${icon("cart")} Pay with Square — ${money(subtotal)}</button>
       <p class="muted center" style="font-size:.74rem;margin:8px 0 0">You'll pay securely on Square, then come right back here and your prompt unlocks automatically.</p>`;
@@ -2709,7 +2716,8 @@ function openRequest(r){
 const SOCIALS=["instagram","tiktok","youtube","twitter","facebook","linkedin"];
 function adminConfig(){
   const c=cfg();const o=c.ownerProfiles||[{},{}];
-  const sq=(c.square&&c.square.defaultCheckoutUrl)||"";
+  const sq=c.square||{};
+  const pp=(c.pricingDefaults&&c.pricingDefaults.prompt)||2,pk=(c.pricingDefaults&&c.pricingDefaults.pack)||25;
   return `${adminTop("Site Config",`<button class="btn btn-primary btn-sm" id="cfgSave">${icon("check")} Save changes</button>`)}
     <div class="admin-card"><div class="admin-card-head"><h3>Business details</h3></div>
       <div class="form-row"><div class="form-field"><label>Business email</label><input id="cf_email" value="${esc(c.businessEmail)}"></div>
@@ -2719,8 +2727,12 @@ function adminConfig(){
       <div class="form-field"><label>Announcement banner <span class="muted">(blank = hidden)</span></label><input id="cf_banner" value="${esc(c.announcementBanner||"")}" placeholder="🎉 Launch week — new packs added"></div></div>
 
     <div class="admin-card"><div class="admin-card-head"><h3>Payments (Square)</h3></div>
-      <div class="form-field"><label>Default Square checkout link</label><input id="cf_sq" value="${esc(sq)}" placeholder="https://checkout.square.site/...">
-        <p class="muted" style="font-size:.78rem;margin:8px 0 0">Used for any prompt/pack without its own link. Tip: in your Square link settings, set the “after payment” redirect to <code>${esc(location.origin+location.pathname)}#/success</code>.</p></div></div>
+      <p class="muted" style="font-size:.82rem;margin:-2px 0 14px">Two Square payment links run the whole store — one for single prompts, one for packs. In each link's Square settings, set the “after payment” redirect to <code>${esc(location.origin+location.pathname)}#/success</code>.</p>
+      <div class="form-field"><label>Single-prompt payment link <span class="muted">(for ${money(pp)} prompts)</span></label>
+        <input id="cf_sq_prompt" value="${esc(sq.promptCheckoutUrl||"")}" placeholder="https://square.link/u/xxxxxxxx"></div>
+      <div class="form-field" style="margin-top:12px"><label>Pack payment link <span class="muted">(for ${money(pk)} packs)</span></label>
+        <input id="cf_sq_pack" value="${esc(sq.packCheckoutUrl||"")}" placeholder="https://square.link/u/yyyyyyyy"></div>
+      <p class="muted" style="font-size:.76rem;margin:10px 0 0">A prompt or pack can still override these with its own link in its editor.</p></div>
 
     <div class="admin-card"><div class="admin-card-head"><h3>Pricing defaults</h3></div>
       <div class="form-row"><div class="form-field"><label>Single prompt ($)</label><input id="cf_pp" type="number" step="0.5" value="${c.pricingDefaults.prompt}"></div>
@@ -2763,7 +2775,7 @@ async function saveConfigForm(){
   c.businessEmail=$("#cf_email").value.trim();c.phoneNumber=$("#cf_phone").value.trim();
   c.businessHours=$("#cf_hours").value.trim();c.responseTime=$("#cf_resp").value.trim();
   c.announcementBanner=$("#cf_banner").value.trim();
-  c.square={defaultCheckoutUrl:$("#cf_sq").value.trim()};
+  c.square={promptCheckoutUrl:$("#cf_sq_prompt").value.trim(),packCheckoutUrl:$("#cf_sq_pack").value.trim(),defaultCheckoutUrl:(cfg().square&&cfg().square.defaultCheckoutUrl)||""};
   c.pricingDefaults={prompt:+$("#cf_pp").value||0,pack:+$("#cf_pk").value||0};
   const names=$$(".cf_oname"),roles=$$(".cf_orole"),mails=$$(".cf_omail");
   c.ownerProfiles=[0,1].map(i=>({name:names[i].value.trim(),role:roles[i].value.trim(),email:mails[i].value.trim()})).filter(o=>o.name);
