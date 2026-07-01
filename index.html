@@ -696,6 +696,14 @@ select:focus{outline:none;border-color:var(--blue)}
 .receipt-row{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 14px;font-size:.9rem;font-weight:600}
 .receipt-row svg{width:16px;height:16px;color:var(--success);flex:none}
 @media(max-width:860px){.cart-grid{grid-template-columns:1fr}.cart-summary{position:static}}
+.locked-panel{display:flex;gap:16px;align-items:flex-start;background:linear-gradient(180deg,var(--bg-2),var(--surface));border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:4px}
+.lp-ico{width:46px;height:46px;flex:none;display:grid;place-items:center;background:rgba(77,163,255,.14);color:var(--blue-ink);border-radius:12px}
+.lp-ico svg{width:22px;height:22px}
+.lp-title{font-weight:750;font-size:1.02rem}
+.lp-sub{color:var(--muted);font-size:.88rem;margin:4px 0 12px;line-height:1.5}
+.lp-stats{display:flex;flex-wrap:wrap;gap:8px}
+.lp-stats span{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 11px}
+.lp-stats svg{width:14px;height:14px;color:var(--blue-ink)}
 </style>
 </head>
 <body>
@@ -733,23 +741,30 @@ const Store=(()=>{
    ============================================================================ */
 const CONFIG={
   firebase:{
-    apiKey:"AIzaSyBknldm66hAJOdjo4I9gSBKqbN7T5Z0hEY",          // <-- paste your Firebase web config
+    apiKey:"AIzaSyBknldm66hAJOdjo4I9gSBKqbN7T5Z0hEY",
     authDomain:"promptlab-d8302.firebaseapp.com",
     projectId:"promptlab-d8302",
     storageBucket:"promptlab-d8302.firebasestorage.app",
     messagingSenderId:"1096928014304",
-    appId:"1:1096928014304:web:1704b57e58edae667e8585"
+    appId:"1:1096928014304:web:1704b57e58edae667e8585",
+    measurementId:"G-PMBJLRCMBT"
   },
-  /* Square — secure checkout. For card payments you need a tiny backend (the
-     included Cloud Function) that charges via Square's API and records the order.
-     appId + locationId come from your Square Developer dashboard; the function URL
-     is printed when you deploy functions/ (see SETUP.md). */
+  /* ───────── SQUARE CHECKOUT ─────────
+     SIMPLE (recommended to start, no backend): paste ONE Square checkout link
+     below. Buyers pay on Square's own page, then land back on your site and
+     their prompts unlock. Create the link in Square Dashboard → Online →
+     Payment Links (set "After payment, redirect to" → your site URL + #/success).
+     That's the only thing you need to start selling — see SETUP.md.
+
+     ADVANCED (optional, fully automated + server-verified orders + locked
+     content): deploy functions/ and fill appId + locationId + checkoutFunctionUrl.
+     When set, those take over and the simple link is ignored. */
   square:{
-    appId:"",                       // Square Web Payments SDK application ID
-    locationId:"",                  // Square location ID
-    defaultCheckoutUrl:""           // optional legacy hosted-link fallback
+    checkoutUrl:"",                 // ← SIMPLE: your Square payment link (start here)
+    appId:"",                       // advanced: Square Web Payments SDK app ID
+    locationId:""                   // advanced: Square location ID
   },
-  checkoutFunctionUrl:"",           // deployed createPayment function URL
+  checkoutFunctionUrl:"",           // advanced: deployed createPayment function URL
   /* ADMIN ACCESS — one shared password for all owners, no individual accounts.
      • Local preview: this password unlocks the dashboard directly.
      • Production: the dashboard signs into ONE shared Firebase account
@@ -999,7 +1014,7 @@ const LocalDB=(()=>{
       const id=p.id||uid("p");const hasText=typeof p.promptText==="string";
       if(hasText)data.promptContent[id]={promptText:p.promptText,variableMeta:p.variableMeta||{}};
       const content=data.promptContent[id]||{promptText:"",variableMeta:{}};
-      const rec=pub(p);rec.id=id;rec.variables=parseVars(content.promptText);rec.preview=(content.promptText||"").slice(0,160);rec.updatedAt=Date.now();
+      const rec=pub(p);rec.id=id;rec.variables=parseVars(content.promptText);rec.wordCount=(content.promptText||"").trim().split(/\s+/).filter(Boolean).length;rec.updatedAt=Date.now();
       const i=data.prompts.findIndex(x=>x.id===id);
       if(i>=0)data.prompts[i]={...data.prompts[i],...rec};
       else{rec.createdAt=Date.now();rec.purchaseCount=rec.purchaseCount||0;data.prompts.unshift(rec);}
@@ -1049,6 +1064,10 @@ async function makeFirebaseDB(){
   const au=await import(`https://www.gstatic.com/firebasejs/${v}/firebase-auth.js`);
   const fbApp=app.initializeApp(CONFIG.firebase);
   const db=fs.getFirestore(fbApp); const auth=au.getAuth(fbApp);
+  // Best-effort GA4 analytics (measurementId present) — failures are harmless.
+  if(CONFIG.firebase.measurementId){import(`https://www.gstatic.com/firebasejs/${v}/firebase-analytics.js`)
+    .then(an=>{const a=an.getAnalytics(fbApp);window.__plLog=(name,params)=>{try{an.logEvent(a,name,params||{});}catch(e){}};})
+    .catch(()=>{});}
   const cache={prompts:[],packs:[],categories:[],config:clone(SEED_CONFIG),customRequests:[],orders:[]};
   const listeners=new Set(); const notify=()=>listeners.forEach(f=>{try{f();}catch(e){}});
   const col=n=>fs.collection(db,n);
@@ -1073,7 +1092,7 @@ async function makeFirebaseDB(){
     async savePrompt(p){
       const id=p.id||uid("p");const hasText=typeof p.promptText==="string";
       const rec={...pub(p),id,updatedAt:Date.now()};
-      if(hasText){rec.variables=parseVars(p.promptText);rec.preview=p.promptText.slice(0,160);}
+      if(hasText){rec.variables=parseVars(p.promptText);rec.wordCount=p.promptText.trim().split(/\s+/).filter(Boolean).length;}
       await fs.setDoc(fs.doc(db,"prompts",id),rec,{merge:true});
       if(hasText)await fs.setDoc(fs.doc(db,"promptContent",id),{promptText:p.promptText,variableMeta:p.variableMeta||{},id});
       return rec;
@@ -1091,7 +1110,7 @@ async function makeFirebaseDB(){
 }
 
 /* App-wide state */
-const State={db:LocalDB,admin:null,theme:Store.get("pl_theme")||"light",route:null};
+const State={db:LocalDB,admin:null,theme:Store.get("pl_theme")||"light",route:null,local:false};
 
 /* ---------- CART (per-browser, localStorage) ---------- */
 const Cart=(()=>{
@@ -1308,7 +1327,7 @@ const paymentsConfigured=()=>!!(FIREBASE_ENABLED&&CONFIG.checkoutFunctionUrl&&CO
 
 async function processCheckout(cart,buyer,sourceId){
   if(!cart||!cart.length)throw new Error("Your cart is empty.");
-  if(FIREBASE_ENABLED){
+  if(!State.local){
     if(!CONFIG.checkoutFunctionUrl)throw new Error("Payments are not configured yet.");
     const res=await fetch(CONFIG.checkoutFunctionUrl,{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({items:cart.map(c=>({id:c.id,type:c.type})),buyerEmail:(buyer&&buyer.email)||"",sourceId,idempotencyKey:uid("idem")})});
@@ -1317,8 +1336,31 @@ async function processCheckout(cart,buyer,sourceId){
   }
   return await State.db.checkout(cart,buyer); // preview emulator
 }
+/* Client-side delivery for SIMPLE Square-link mode (no backend): after the buyer
+   pays on Square and returns, expand their cart into full prompts + record locally.
+   Note: this path needs promptContent readable (see SETUP rules). The Cloud Function
+   path keeps content fully locked and verifies payment server-side. */
+async function buildDelivery(cart,buyer){
+  const items=[],lines=[];let amount=0;
+  const addPrompt=async(pid,packId)=>{
+    const pr=promptById(pid);if(!pr)return;
+    const ct=(await State.db.getPromptContent(pid))||{promptText:"",variableMeta:{}};
+    items.push({id:pr.id,type:"prompt",title:pr.title,categoryId:pr.categoryId,promptText:ct.promptText,variableMeta:ct.variableMeta,...(packId?{packId}:{})});
+  };
+  for(const ci of (cart||[])){
+    if(ci.type==="pack"){const pk=packById(ci.id);if(!pk)continue;
+      amount+=pk.price||0;lines.push({id:pk.id,type:"pack",title:pk.title,price:pk.price||0});
+      for(const pid of (pk.promptIds||[]))await addPrompt(pid,pk.id);
+    }else{const pr=promptById(ci.id);if(!pr)continue;
+      amount+=pr.price||0;lines.push({id:pr.id,type:"prompt",title:pr.title,price:pr.price||0});
+      await addPrompt(ci.id,null);
+    }
+  }
+  const order={id:uid("ord"),lines,email:(buyer&&buyer.email)||"",amount,currency:"USD",status:"paid",mode:"square-link",itemCount:items.length,createdAt:Date.now()};
+  return {order,items};
+}
 function track(event,params={}){
-  try{if(FIREBASE_ENABLED&&window.gtag)window.gtag("event",event,params);}catch(e){}
+  try{if(window.__plLog)window.__plLog(event,params);else if(FIREBASE_ENABLED&&window.gtag)window.gtag("event",event,params);}catch(e){}
   const k="pl_events";const q=Store.json(k,[]);q.push({event,params,t:Date.now()});Store.setJson(k,q.slice(-500));
 }
 function setJsonLd(obj){
@@ -1708,7 +1750,7 @@ function renderPack(id){
         :Cart.has(pk.id,"pack")?`<a class="btn btn-primary btn-block btn-lg" href="#/cart">${icon("cart")} In cart — checkout</a>`
         :`<button class="btn btn-primary btn-block btn-lg" data-addpack="${pk.id}">${icon("cart")} Add to cart</button>
           <button class="btn btn-secondary btn-block" data-buynowpack="${pk.id}" style="margin-top:10px">Buy now</button>`}
-      <div class="secure">${icon("shield")} Payment verified server-side before delivery</div>
+      <div class="secure">${secureNote()}</div>
     </div></div>
   </div></div>
   ${related.length?`<section class="related"><div class="container">
@@ -1733,6 +1775,10 @@ function relatedPrompts(p){
     return {x,s:.5*cat+.3*overlap+.2*pop};
   }).sort((a,b)=>b.s-a.s).slice(0,3).map(o=>o.x);
 }
+function secureNote(){return (FIREBASE_ENABLED&&CONFIG.checkoutFunctionUrl)?`${icon("shield")} Payment verified server-side before delivery`:`${icon("shield")} Secure checkout powered by Square`;}
+/* The Square payment link can be set in the dashboard (Site Config → Payments) or
+   hard-coded in CONFIG.square.checkoutUrl. Dashboard value wins. */
+function checkoutLink(){try{return ((cfg().square&&cfg().square.defaultCheckoutUrl)||CONFIG.square.checkoutUrl||"").trim();}catch(e){return (CONFIG.square.checkoutUrl||"").trim();}}
 function renderPrompt(id){
   const p=promptById(id);
   if(!p){renderNotFound("That prompt is no longer available.");return;}
@@ -1751,11 +1797,18 @@ function renderPrompt(id){
         ${(p.aiCompatibility||[]).map(a=>`<span class="badge">${esc(a)}</span>`).join("")}</div>
         <h1>${esc(p.title)}</h1><p class="lead">${esc(p.description)}</p></div>
 
-      <div class="viewer">
-        <div class="viewer-head"><span class="vh-title">${icon("lock")} Prompt template — preview</span>
-          <span class="badge">${owned?"Owned":"Unlocks after purchase"}</span></div>
-        <div class="viewer-body locked-body">${highlightPrompt((p.preview||p.description||"").slice(0,160)+" …",{})}
-          ${owned?"":`<div class="lock-veil"><div>${icon("lock")} Full prompt unlocks in your Library after purchase</div></div>`}</div></div>
+      <div class="locked-panel">
+        <div class="lp-ico">${icon(owned?"check":"lock")}</div>
+        <div style="flex:1;min-width:0">
+          <div class="lp-title">${owned?"You own this prompt":"Full prompt — locked"}</div>
+          <div class="lp-sub">${owned?"Open it in your Library to fill in the variables and copy the finished prompt.":"The complete, ready-to-use template unlocks in your Library the moment you buy. No preview — that's the whole point of paying for it."}</div>
+          <div class="lp-stats">
+            <span>${icon("box")} ${p.wordCount?p.wordCount+" words":"Full template"}</span>
+            <span>${icon("bolt")} ${vars.length} variable${vars.length===1?"":"s"}</span>
+            <span>${icon("sparkles")} ${(p.aiCompatibility||[]).length||3} AI models</span>
+          </div>
+        </div>
+      </div>
 
       ${vars.length?`<div class="var-engine">
         <h3>${icon("bolt")} ${vars.length} customizable variable${vars.length===1?"":"s"}</h3>
@@ -1778,7 +1831,7 @@ function renderPrompt(id){
         :inCart?`<a class="btn btn-primary btn-block btn-lg" href="#/cart">${icon("cart")} In cart — checkout</a>`
         :`<button class="btn btn-primary btn-block btn-lg" data-add="${p.id}">${icon("cart")} Add to cart</button>
           <button class="btn btn-secondary btn-block" data-buynow="${p.id}" style="margin-top:10px">Buy now</button>`}
-      <div class="secure">${icon("shield")} Payment verified server-side before delivery</div>
+      <div class="secure">${secureNote()}</div>
       <div class="buy-custom">Need something more specific? <a href="#/custom">Request a custom prompt →</a></div>
     </div></div>
   </div></div>
@@ -1991,28 +2044,44 @@ async function completeOrder(buyer,sourceId,btn){
 function mountCheckout(subtotal){
   const area=$("#checkoutArea");if(!area)return;
   const getBuyer=()=>({email:(($("#buyerEmail")||{}).value||"").trim()});
-  if(!FIREBASE_ENABLED){
+  // 1) Local sandbox → built-in emulator (no real charge)
+  if(State.local){
     area.innerHTML=`<button class="btn btn-primary btn-block btn-lg" id="payBtn" style="margin-top:4px">${icon("bolt")} Complete order — ${money(subtotal)}</button>
       <p class="muted center" style="font-size:.74rem;margin:8px 0 0">Local preview — no real charge. Connect Square for live payments.</p>`;
     $("#payBtn").onclick=()=>completeOrder(getBuyer(),null,$("#payBtn"));return;
   }
-  if(!paymentsConfigured()){
-    area.innerHTML=`<div class="admin-banner" style="margin-top:10px">${icon("lock")} Payments aren't configured yet. Set Square <code>appId</code>/<code>locationId</code> and deploy the checkout function (SETUP.md).</div>`;return;
+  // 2) ADVANCED: Cloud Function + Web Payments SDK (in-page card, server-verified)
+  if(paymentsConfigured()){
+    area.innerHTML=`<div id="sqCard" style="margin:12px 0;min-height:48px"></div>
+      <button class="btn btn-primary btn-block btn-lg" id="payBtn" disabled>${icon("lock")} Pay ${money(subtotal)}</button>`;
+    const payBtn=$("#payBtn");
+    loadSquareSdk().then(async Sq=>{
+      try{
+        const payments=Sq.payments(CONFIG.square.appId,CONFIG.square.locationId);
+        const card=await payments.card();await card.attach("#sqCard");payBtn.disabled=false;
+        payBtn.onclick=async()=>{payBtn.disabled=true;
+          try{const r=await card.tokenize();
+            if(r.status==="OK")await completeOrder(getBuyer(),r.token,payBtn);
+            else{toast("Please check your card details.","error");payBtn.disabled=false;}
+          }catch(e){toast("Payment error. Try again.","error");payBtn.disabled=false;}};
+      }catch(e){area.innerHTML=`<div class="admin-banner">${icon("lock")} Could not start Square — verify appId/locationId.</div>`;}
+    }).catch(()=>{area.innerHTML=`<div class="admin-banner">${icon("lock")} Square SDK failed to load.</div>`;});
+    return;
   }
-  area.innerHTML=`<div id="sqCard" style="margin:12px 0;min-height:48px"></div>
-    <button class="btn btn-primary btn-block btn-lg" id="payBtn" disabled>${icon("lock")} Pay ${money(subtotal)}</button>`;
-  const payBtn=$("#payBtn");
-  loadSquareSdk().then(async Sq=>{
-    try{
-      const payments=Sq.payments(CONFIG.square.appId,CONFIG.square.locationId);
-      const card=await payments.card();await card.attach("#sqCard");payBtn.disabled=false;
-      payBtn.onclick=async()=>{payBtn.disabled=true;
-        try{const r=await card.tokenize();
-          if(r.status==="OK")await completeOrder(getBuyer(),r.token,payBtn);
-          else{toast("Please check your card details.","error");payBtn.disabled=false;}
-        }catch(e){toast("Payment error. Try again.","error");payBtn.disabled=false;}};
-    }catch(e){area.innerHTML=`<div class="admin-banner">${icon("lock")} Could not start Square — verify appId/locationId.</div>`;}
-  }).catch(()=>{area.innerHTML=`<div class="admin-banner">${icon("lock")} Square SDK failed to load.</div>`;});
+  // 3) SIMPLE (default): Square hosted checkout link — no backend needed
+  const link=checkoutLink();
+  if(link){
+    area.innerHTML=`<button class="btn btn-primary btn-block btn-lg" id="payBtn">${icon("cart")} Pay with Square — ${money(subtotal)}</button>
+      <p class="muted center" style="font-size:.74rem;margin:8px 0 0">You'll pay securely on Square, then come right back here and your prompts unlock automatically.</p>`;
+    $("#payBtn").onclick=()=>{
+      const buyer=getBuyer();
+      try{sessionStorage.setItem("pl_pending_cart",JSON.stringify({cart:Cart.items(),buyer,amount:subtotal,ts:Date.now()}));}catch(e){}
+      track("checkout_redirect",{amount:subtotal,items:Cart.count()});
+      window.location.href=link;
+    };return;
+  }
+  // 4) Nothing configured yet
+  area.innerHTML=`<div class="admin-banner" style="margin-top:10px">${icon("lock")} Almost there — add your Square payment link in the dashboard (Site Config → Payments), or in <code>CONFIG.square.checkoutUrl</code> (SETUP.md).</div>`;
 }
 function renderCart(){
   setPageMeta("Your cart — PromptLab");
@@ -2091,7 +2160,7 @@ function renderLibrary(){
       cp.innerHTML=`${icon("check")} Copied!`;toast("Prompt copied");track("library_copy",{id:it.id});setTimeout(()=>cp.innerHTML=`${icon("copy")} Copy`,1600);};
   });
 }
-function renderSuccess(q){
+async function renderSuccess(q){
   const type=q.get("type");
   if(type==="custom"){
     view(`<section class="section"><div class="container"><div class="success-wrap">
@@ -2100,6 +2169,22 @@ function renderSuccess(q){
       <p class="lead" style="margin:14px auto 26px">Thanks for your custom prompt request — we'll review it and get back to you ${esc(cfg().responseTime||"shortly")}. Keep an eye on your inbox.</p>
       <div class="hero-cta" style="justify-content:center"><a class="btn btn-primary btn-lg" href="#/browse">Browse prompts</a>
         <a class="btn btn-secondary btn-lg" href="#/">Back home</a></div></div></div></section>`);return;
+  }
+  // SIMPLE Square-link mode: the buyer just paid on Square and came back — deliver now.
+  let pending=null;try{pending=JSON.parse(sessionStorage.getItem("pl_pending_cart")||"null");}catch(e){}
+  if(pending&&pending.cart&&pending.cart.length){
+    view(`<section class="section"><div class="container"><div class="success-wrap">
+      <div class="success-ico">${icon("bolt")}</div>
+      <h1 style="font-size:clamp(1.7rem,3.2vw,2.3rem)">Unlocking your prompts…</h1>
+      <p class="lead" style="margin:14px auto 0">One moment while we add your purchase to your Library.</p></div></div></section>`);
+    try{
+      const {order,items}=await buildDelivery(pending.cart,pending.buyer);
+      Library.addDelivered(order,items);
+      try{sessionStorage.setItem("pl_last_order",JSON.stringify({order,items:items.map(i=>({id:i.id,title:i.title,type:i.type}))}));}catch(e){}
+      track("purchase",{amount:order.amount,items:items.length,mode:"square-link"});
+      Cart.clear();
+    }catch(e){}
+    try{sessionStorage.removeItem("pl_pending_cart");}catch(e){}
   }
   let last=null;try{last=JSON.parse(sessionStorage.getItem("pl_last_order")||"null");}catch(e){}
   const order=last&&last.order;const items=(last&&last.items)||[];
@@ -2171,7 +2256,7 @@ function initAdminAccess(){
 }
 function openAdminAuth(){
   if(State.admin){location.hash="#/admin";return;}
-  const needEmail=FIREBASE_ENABLED&&!CONFIG.adminEmail; // only if no shared account configured
+  const needEmail=!State.local&&!CONFIG.adminEmail; // only if no shared account configured
   openModal(`<button class="icon-btn m-close" data-close>${icon("close")}</button>
     <div style="text-align:center;margin-bottom:10px"><div class="cat-ico" style="margin:0 auto 12px;width:50px;height:50px">${icon("lock")}</div>
       <h3>Admin access</h3><p class="muted" style="font-size:.86rem">Authorized owners only.</p></div>
@@ -2179,7 +2264,7 @@ function openAdminAuth(){
     ${needEmail?`<div class="form-field"><label>Email</label><input id="adEmail" type="email" placeholder="admin@yourdomain.com"></div>`:""}
     <div class="form-field"><label>Password</label><input id="adPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
     <button class="btn btn-primary btn-block btn-lg" id="adLogin">Unlock dashboard</button>
-    <p class="muted center" style="font-size:.76rem;margin:12px 0 0">${FIREBASE_ENABLED?`${icon("shield")} Shared owner login, secured by Firebase.`:`${icon("shield")} Shared owner password.`}</p>`);
+    <p class="muted center" style="font-size:.76rem;margin:12px 0 0">${!State.local?`${icon("shield")} Shared owner login, secured by Firebase.`:`${icon("shield")} Shared owner password.`}</p>`);
   const pass=$("#adPass");setTimeout(()=>pass&&pass.focus(),60);
   pass.addEventListener("keydown",e=>{if(e.key==="Enter")$("#adLogin").click();});
   $("#adLogin").onclick=adminLogin;
@@ -2187,7 +2272,7 @@ function openAdminAuth(){
 async function adminLogin(){
   const btn=$("#adLogin"),pass=$("#adPass").value;
   const fail=msg=>{const e=$("#authErr");if(e){if(msg)e.querySelector("p").textContent=msg;e.classList.remove("hide");}};
-  if(FIREBASE_ENABLED){
+  if(!State.local){
     const email=CONFIG.adminEmail||(($("#adEmail")||{}).value||"").trim();
     if(!email){fail("Set CONFIG.adminEmail to the shared admin login.");return;}
     btn.disabled=true;btn.textContent="Verifying…";
@@ -2223,7 +2308,7 @@ function resetIdle(){
   _idleTimer=setTimeout(()=>{
     if(!State.admin)return;
     State.admin=null;if(_adUnsub){_adUnsub();_adUnsub=null;}
-    if(FIREBASE_ENABLED){try{State.db._au.signOut(State.db._auth);}catch(e){}}
+    if(!State.local){try{State.db._au&&State.db._au.signOut(State.db._auth);}catch(e){}}
     toast("Session timed out — logged out for your security.","info");location.hash="#/";
   },SESSION_MIN*60*1000);
 }
@@ -2245,7 +2330,7 @@ function renderAdmin(){
     </aside><div class="admin-main" id="adminMain"></div></div>`;
   $$(".admin-nav[data-sec]").forEach(b=>b.onclick=()=>{AD.section=b.dataset.sec;renderAdmin();});
   $("#adLogout").onclick=()=>{State.admin=null;if(_adUnsub){_adUnsub();_adUnsub=null;}clearTimeout(_idleTimer);
-    if(FIREBASE_ENABLED){try{State.db._au.signOut(State.db._auth);}catch(e){}}toast("Logged out.","info");location.hash="#/";};
+    if(!State.local){try{State.db._au&&State.db._au.signOut(State.db._auth);}catch(e){}}toast("Logged out.","info");location.hash="#/";};
   renderAdminSection();
   if(_adUnsub)_adUnsub();
   _adUnsub=State.db.onChange(debounce(()=>{if((State.route||"").startsWith("admin"))renderAdminSection();},120));
@@ -2777,14 +2862,19 @@ async function startApp(){
 async function boot(){
   applyTheme(State.theme);
   let preview=false;try{preview=sessionStorage.getItem("pl_preview")==="1";}catch(e){}
-  if(FIREBASE_ENABLED){
-    try{State.db=await makeFirebaseDB();await State.db.init();}
+  // Design-preview override: ?preview=1 (or localStorage pl_force_local) runs the
+  // storefront on the local sandbox even when Firebase is configured — handy for
+  // previewing UI without touching production data.
+  let forceLocal=false;try{forceLocal=/[?&]preview=1\b/.test(location.href)||localStorage.getItem("pl_force_local")==="1";}catch(e){}
+  if(FIREBASE_ENABLED && !forceLocal){
+    try{State.db=await makeFirebaseDB();await State.db.init();State.local=false;}
     catch(e){console.error("Firebase failed to initialize. Check your CONFIG.firebase values and that Firestore + Auth are enabled.",e);renderSetup();return;}
     return startApp();
   }
-  // No Firebase configured.
-  if(!preview){renderSetup();return;}
-  await State.db.init();           // local preview (this browser only)
+  // No Firebase (or forced local).
+  if(!preview && !forceLocal){renderSetup();return;}
+  State.local=true;
+  await State.db.init();           // local sandbox (this browser only)
   startApp();
 }
 boot();
