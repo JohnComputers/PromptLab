@@ -1020,6 +1020,10 @@ const LocalDB=(()=>{
     getConfig(){return data.config;},
     getRequests(){return data.customRequests;},
     getOrders(){return data.orders;},
+    async addOrder(o){data.orders.unshift(o);(o.lines||[]).forEach(l=>{const arr=l.type==="pack"?data.packs:data.prompts;const it=arr.find(x=>x.id===l.id);if(it)it.purchaseCount=(it.purchaseCount||0)+1;});save();notify();return o;},
+    logEvent(){/* local events already captured in pl_events by track() */},
+    getEvents(){return Store.json("pl_events",[]);},
+    ensureEventsSub(){},
     getPurchases(){return data.orders;},
     async getPromptContent(id){const c=data.promptContent[id];return c?clone(c):null;},
     async fetchPromptFull(id){const p=data.prompts.find(x=>x.id===id);if(!p)return null;const c=data.promptContent[id]||{promptText:"",variableMeta:{}};return {...clone(p),promptText:c.promptText||"",variableMeta:c.variableMeta||{}};},
@@ -1083,10 +1087,10 @@ async function makeFirebaseDB(){
   if(CONFIG.firebase.measurementId){import(`https://www.gstatic.com/firebasejs/${v}/firebase-analytics.js`)
     .then(an=>{const a=an.getAnalytics(fbApp);window.__plLog=(name,params)=>{try{an.logEvent(a,name,params||{});}catch(e){}};})
     .catch(()=>{});}
-  const cache={prompts:[],packs:[],categories:[],config:clone(SEED_CONFIG),customRequests:[],orders:[]};
+  const cache={prompts:[],packs:[],categories:[],config:clone(SEED_CONFIG),customRequests:[],orders:[],events:[]};
   const listeners=new Set(); const notify=()=>listeners.forEach(f=>{try{f();}catch(e){}});
   const col=n=>fs.collection(db,n);
-  let ordersUnsub=null;
+  let ordersUnsub=null,eventsUnsub=null;
   // public live listeners (no promptContent — that collection is admin/function-only)
   fs.onSnapshot(col("prompts"),s=>{cache.prompts=s.docs.map(d=>({id:d.id,...d.data()}));notify();});
   fs.onSnapshot(col("packs"),s=>{cache.packs=s.docs.map(d=>({id:d.id,...d.data()}));notify();});
@@ -1103,6 +1107,11 @@ async function makeFirebaseDB(){
     getRequests(){return cache.customRequests;},getOrders(){return cache.orders;},getPurchases(){return cache.orders;},
     // admin-only orders feed (rules block public reads); started after login
     ensureOrdersSub(){if(ordersUnsub)return;try{ordersUnsub=fs.onSnapshot(col("orders"),s=>{cache.orders=s.docs.map(d=>({id:d.id,...d.data()}));notify();});}catch(e){}},
+    async addOrder(o){try{await fs.setDoc(fs.doc(db,"orders",o.id||uid("ord")),o);}catch(e){}return o;},
+    // site analytics: everyone can log; only the admin can read (rules)
+    logEvent(ev){try{fs.addDoc(col("events"),ev).catch(()=>{});}catch(e){}},
+    getEvents(){return cache.events||[];},
+    ensureEventsSub(){if(eventsUnsub)return;try{eventsUnsub=fs.onSnapshot(fs.query(col("events"),fs.orderBy("t","desc"),fs.limit(2000)),s=>{cache.events=s.docs.map(d=>d.data());notify();});}catch(e){}},
     async getPromptContent(id){const d=await fs.getDoc(fs.doc(db,"promptContent",id));return d.exists()?d.data():null;},
     async fetchPromptFull(id){const [a,b]=await Promise.all([fs.getDoc(fs.doc(db,"prompts",id)),fs.getDoc(fs.doc(db,"promptContent",id))]);if(!a.exists())return null;const p=a.data();const c=b.exists()?b.data():{promptText:"",variableMeta:{}};return {...p,id,promptText:c.promptText||"",variableMeta:c.variableMeta||{}};},
     async fetchPackFull(id){const d=await fs.getDoc(fs.doc(db,"packs",id));return d.exists()?{...d.data(),id}:null;},
@@ -1130,6 +1139,7 @@ async function makeFirebaseDB(){
 
 /* App-wide state */
 const State={db:LocalDB,admin:null,theme:Store.get("pl_theme")||"light",route:null,local:false};
+try{window.__PL_STATE=State;}catch(e){}
 
 /* ---------- CART (per-browser, localStorage) ---------- */
 const Cart=(()=>{
@@ -1478,32 +1488,40 @@ async function processCheckout(cart,buyer,sourceId){
   }
   return await State.db.checkout(cart,buyer); // preview emulator
 }
-/* Client-side delivery for SIMPLE Square-link mode (no backend): after the buyer
-   pays on Square and returns, expand their cart into full prompts + record locally.
-   Note: this path needs promptContent readable (see SETUP rules). The Cloud Function
-   path keeps content fully locked and verifies payment server-side. */
+/* Client-side delivery for SIMPLE Square-link mode (no backend). Reads every
+   item DIRECTLY from the database (never from the in-memory cache), so it works
+   even on a fresh page load before catalog snapshots arrive — and one bad item
+   can't sink the rest (per-item isolation). */
 async function buildDelivery(cart,buyer){
   const items=[],lines=[];let amount=0;
   const addPrompt=async(pid,packId)=>{
-    const pr=promptById(pid);if(!pr)return;
-    const ct=(await State.db.getPromptContent(pid))||{promptText:"",variableMeta:{}};
-    items.push({id:pr.id,type:"prompt",title:pr.title,categoryId:pr.categoryId,promptText:ct.promptText,variableMeta:ct.variableMeta,...(packId?{packId}:{})});
+    try{
+      const pr=await State.db.fetchPromptFull(pid);if(!pr)return;
+      items.push({id:pr.id,type:"prompt",title:pr.title,categoryId:pr.categoryId,promptText:pr.promptText||"",variableMeta:pr.variableMeta||{},...(packId?{packId}:{})});
+      if(!packId){amount+=pr.price||0;lines.push({id:pr.id,type:"prompt",title:pr.title,price:pr.price||0});}
+    }catch(e){}
   };
   for(const ci of (cart||[])){
-    if(ci.type==="pack"){const pk=packById(ci.id);if(!pk)continue;
-      amount+=pk.price||0;lines.push({id:pk.id,type:"pack",title:pk.title,price:pk.price||0});
-      for(const pid of (pk.promptIds||[]))await addPrompt(pid,pk.id);
-    }else{const pr=promptById(ci.id);if(!pr)continue;
-      amount+=pr.price||0;lines.push({id:pr.id,type:"prompt",title:pr.title,price:pr.price||0});
-      await addPrompt(ci.id,null);
-    }
+    try{
+      if(ci.type==="pack"){
+        const pk=await State.db.fetchPackFull(ci.id);if(!pk)continue;
+        amount+=pk.price||0;lines.push({id:pk.id,type:"pack",title:pk.title,price:pk.price||0});
+        await Promise.all((pk.promptIds||[]).map(pid=>addPrompt(pid,pk.id)));
+      }else{
+        await addPrompt(ci.id,null);
+      }
+    }catch(e){}
   }
   const order={id:uid("ord"),lines,email:(buyer&&buyer.email)||"",amount,currency:"USD",status:"paid",mode:"square-link",itemCount:items.length,createdAt:Date.now()};
   return {order,items};
 }
 function track(event,params={}){
   try{if(window.__plLog)window.__plLog(event,params);else if(FIREBASE_ENABLED&&window.gtag)window.gtag("event",event,params);}catch(e){}
-  const k="pl_events";const q=Store.json(k,[]);q.push({event,params,t:Date.now()});Store.setJson(k,q.slice(-500));
+  const rec={event,params,t:Date.now()};
+  // Site analytics: persist to the shared events store (Firestore) so the admin
+  // dashboard sees ALL visitors' activity, not just this browser's.
+  try{if(!State.local&&State.db.logEvent)State.db.logEvent(rec);}catch(e){}
+  const k="pl_events";const q=Store.json(k,[]);q.push(rec);Store.setJson(k,q.slice(-500));
 }
 function setJsonLd(obj){
   let s=document.getElementById("dynamic-ld");
@@ -2190,6 +2208,11 @@ async function completeOrder(items,buyer,sourceId,btn){
 /* Payment surface for an explicit list of `items`. Pass the single product as `item`
    so we can use that product's own Square link. Drives Buy-now (one item) today, and
    still works for the dormant multi-item cart if it's ever re-enabled. */
+/* Pending-purchase stash for the hosted-link flow. localStorage (not session-
+   storage) so it survives Square's redirect in every browser/webview; 2h TTL. */
+function setPending(d){try{localStorage.setItem("pl_pending_delivery",JSON.stringify({...d,ts:Date.now()}));}catch(e){}}
+function getPending(){try{const d=JSON.parse(localStorage.getItem("pl_pending_delivery")||"null");if(!d)return null;if(Date.now()-(d.ts||0)>7200000){clearPending();return null;}return d;}catch(e){return null;}}
+function clearPending(){try{localStorage.removeItem("pl_pending_delivery");}catch(e){}try{sessionStorage.removeItem("pl_pending_delivery");}catch(e){}}
 function mountCheckout(items,subtotal,item){
   const area=$("#checkoutArea");if(!area)return;
   const getBuyer=()=>({email:(($("#buyerEmail")||{}).value||"").trim()});
@@ -2227,12 +2250,14 @@ function mountCheckout(items,subtotal,item){
     $("#payBtn").onclick=async()=>{
       const btn=$("#payBtn");btn.disabled=true;btn.innerHTML=`${icon("bolt")} Preparing…`;
       const buyer={email:getBuyer().email||((Auth.current()||{}).email)||""};
-      // Fetch the full purchase NOW (while the page + session are live), stash it,
-      // then redirect. On return we just persist it — no dependency on a fresh reload.
+      // Stash the raw cart FIRST (guaranteed), then best-effort prefetch the full
+      // content. Either way the return page can deliver: it rebuilds from the cart
+      // with direct DB reads if the prefetch didn't make it.
+      setPending({cart:items,buyer,amount:subtotal});
       try{
         const delivery=await buildDelivery(items,buyer);
-        sessionStorage.setItem("pl_pending_delivery",JSON.stringify(delivery));
-      }catch(e){try{sessionStorage.setItem("pl_pending_delivery",JSON.stringify({order:{id:uid("ord"),lines:[],email:buyer.email,amount:subtotal,status:"paid",mode:"square-link",createdAt:Date.now()},items:[],cart:items}));}catch(_){}}
+        if(delivery.items.length)setPending({cart:items,buyer,amount:subtotal,order:delivery.order,items:delivery.items});
+      }catch(e){}
       track("checkout_redirect",{amount:subtotal,items:items.length});
       window.location.href=link;
     };return;
@@ -2315,6 +2340,7 @@ function renderCheckout(type,id){
         <div class="secure" style="margin-top:12px">${secureNote()}</div>
       </aside>
     </div></div>`);
+  track("checkout_start",{id:it.id,type});
   const acct=Auth.current();
   const em=$("#buyerEmail");if(em&&acct&&acct.email)em.value=acct.email;
   if(!acct){
@@ -2386,33 +2412,48 @@ async function renderSuccess(q){
       <div class="hero-cta" style="justify-content:center"><a class="btn btn-primary btn-lg" href="#/browse">Browse prompts</a>
         <a class="btn btn-secondary btn-lg" href="#/">Back home</a></div></div></div></section>`);return;
   }
-  // SIMPLE Square-link mode: buyer paid on Square and returned — persist to their account now.
-  let pending=null;try{pending=JSON.parse(sessionStorage.getItem("pl_pending_delivery")||"null");}catch(e){}
-  if(pending&&pending.order){
+  // SIMPLE Square-link mode: buyer paid on Square and returned — deliver + record.
+  const pending=getPending();
+  if(pending&&(pending.order||pending.cart)){
     view(`<section class="section"><div class="container"><div class="success-wrap">
       <div class="success-ico">${icon("bolt")}</div>
       <h1 style="font-size:clamp(1.7rem,3.2vw,2.3rem)">Unlocking your purchase…</h1>
       <p class="lead" style="margin:14px auto 0">One moment while we save this to your account.</p></div></div></section>`);
     await Auth.ready();
-    if(Auth.current()){
-      // If content wasn't captured pre-redirect (rare), rebuild it now that we're back.
-      if((!pending.items||!pending.items.length)&&pending.cart&&pending.cart.length){
-        try{const rebuilt=await buildDelivery(pending.cart,pending.order.email?{email:pending.order.email}:{});pending.items=rebuilt.items;pending.order.lines=rebuilt.order.lines;pending.order.amount=pending.order.amount||rebuilt.order.amount;}catch(e){}
-      }
-      try{
-        await Library.addDelivered(pending.order,pending.items||[]);
-        try{sessionStorage.setItem("pl_last_order",JSON.stringify({order:pending.order,items:(pending.items||[]).map(i=>({id:i.id,title:i.title,type:i.type}))}));}catch(e){}
-        track("purchase",{amount:pending.order.amount,items:(pending.items||[]).length,mode:"square-link"});
-      }catch(e){}
-      try{sessionStorage.removeItem("pl_pending_delivery");}catch(e){}
-    }else{
-      // Not logged in on return (session lost). Let them log in to claim — delivery stays pending.
+    if(!Auth.current()){
       view(`<section class="section"><div class="container"><div class="success-wrap">
         <div class="success-ico" style="background:rgba(77,163,255,.12);color:var(--blue-ink)">${icon("lock")}</div>
         <h1 style="font-size:clamp(1.6rem,3vw,2.1rem)">Log in to unlock your purchase</h1>
-        <p class="lead" style="margin:14px auto 22px">You're back from Square. Log into the account you bought with and your prompt will drop into your Library.</p>
+        <p class="lead" style="margin:14px auto 22px">You're back from Square. Log into the account you bought with and it will drop into your Library.</p>
         <button class="btn btn-primary btn-lg" id="claimLogin">Log in to claim</button></div></div></section>`);
       const b=$("#claimLogin");if(b)b.onclick=()=>openAuthModal("login",()=>renderSuccess(new URLSearchParams()));
+      return;
+    }
+    let order=pending.order,items=pending.items||[];
+    // If the pre-redirect capture didn't make it (or captured nothing), rebuild now.
+    // buildDelivery reads straight from the database, so a fresh reload is fine.
+    if(!items.length&&pending.cart&&pending.cart.length){
+      try{const rebuilt=await buildDelivery(pending.cart,pending.buyer||{});order=rebuilt.order;items=rebuilt.items;
+        if(order&&pending.amount&&!order.amount)order.amount=pending.amount;}catch(e){}
+    }
+    if(items.length&&order){
+      try{
+        await Library.addDelivered(order,items);
+        State.db.addOrder&&State.db.addOrder(order);   // record the sale for the dashboard
+        try{sessionStorage.setItem("pl_last_order",JSON.stringify({order,items:items.map(i=>({id:i.id,title:i.title,type:i.type}))}));}catch(e){}
+        track("purchase",{amount:order.amount,items:items.length,mode:"square-link"});
+        clearPending();
+      }catch(e){}
+    }else{
+      // Payment happened on Square but we couldn't load the content — never pretend.
+      // Keep the pending purchase and offer a retry (works once the connection/db is back).
+      view(`<section class="section"><div class="container"><div class="success-wrap">
+        <div class="success-ico" style="background:rgba(255,170,0,.14);color:#b45309">${icon("bolt")}</div>
+        <h1 style="font-size:clamp(1.6rem,3vw,2.1rem)">Payment received — one more step</h1>
+        <p class="lead" style="margin:14px auto 22px">Your payment went through on Square, but we couldn't load your items just now (usually a connection blip). Your purchase is safe — tap below to add it to your Library.</p>
+        <button class="btn btn-primary btn-lg" id="retryDeliver">${icon("rocket")} Add to my Library</button>
+        <p class="muted" style="font-size:.8rem;margin-top:14px">Still stuck? Refresh this page, or contact us — your Square receipt is your proof of purchase.</p></div></div></section>`);
+      const rb=$("#retryDeliver");if(rb)rb.onclick=()=>{rb.disabled=true;rb.textContent="Retrying…";renderSuccess(new URLSearchParams());};
       return;
     }
   }
@@ -2590,12 +2631,13 @@ function renderAdminSection(){
 /* ---------- OVERVIEW ---------- */
 function adminOverview(){
   State.db.ensureOrdersSub&&State.db.ensureOrdersSub();
+  State.db.ensureEventsSub&&State.db.ensureEventsSub();
   const prompts=State.db.getPrompts(),packs=State.db.getPacks(),orders=State.db.getOrders(),reqs=State.db.getRequests();
   const revenue=orders.filter(o=>o.status==="paid").reduce((s,o)=>s+(o.amount||0),0);
-  const events=Store.json("pl_events",[]);
+  const events=State.db.getEvents?State.db.getEvents():Store.json("pl_events",[]);
   const views=events.filter(e=>e.event==="prompt_view").length;
-  const buyClicks=events.filter(e=>e.event==="purchase").length;
-  const conv=views?((buyClicks/views)*100).toFixed(1)+"%":"—";
+  const purchases=Math.max(orders.length,events.filter(e=>e.event==="purchase").length);
+  const conv=views?((purchases/views)*100).toFixed(1)+"%":"—";
   const metric=(label,val,ic)=>`<div class="metric"><div class="m-label">${icon(ic)} ${label}</div><div class="row sp-between"><div class="m-val">${val}</div></div></div>`;
   const orderTitle=o=>{const l=(o.lines||[])[0];const more=(o.lines||[]).length-1;return (l?esc(l.title):"Order")+(more>0?` +${more} more`:"");};
   const activity=[...reqs.map(r=>({t:r.createdAt,h:`New custom request from <b>${esc(r.name)}</b> · ${esc(r.industry||r.projectType||"")}`})),
@@ -2982,29 +3024,35 @@ function openLegalEditor(){
 
 /* ---------- ANALYTICS ---------- */
 function adminAnalytics(){
-  const events=Store.json("pl_events",[]);
+  State.db.ensureEventsSub&&State.db.ensureEventsSub();
+  const remote=State.db.getEvents?State.db.getEvents():[];
+  const events=remote.length?remote:Store.json("pl_events",[]);   // shared store; local fallback in sandbox
+  const orders=State.db.getOrders();
   const count=ev=>events.filter(e=>e.event===ev).length;
-  const prompts=[...State.db.getPrompts()].sort((a,b)=>(b.purchaseCount||0)-(a.purchaseCount||0)).slice(0,6);
-  const maxPc=Math.max(1,...prompts.map(p=>p.purchaseCount||0));
+  const salesBy={};orders.forEach(o=>(o.lines||[]).forEach(l=>{salesBy[l.id]=(salesBy[l.id]||0)+1;}));
+  const soldOf=p=>Math.max(salesBy[p.id]||0,p.purchaseCount||0);
+  const prompts=[...State.db.getPrompts()].sort((a,b)=>soldOf(b)-soldOf(a)).slice(0,6);
+  const maxPc=Math.max(1,...prompts.map(soldOf));
   const catCounts=allCats().map(c=>({name:c.name,n:State.db.getPrompts().filter(p=>p.categoryId===c.id).length})).filter(x=>x.n).sort((a,b)=>b.n-a.n).slice(0,6);
   const maxCat=Math.max(1,...catCounts.map(c=>c.n));
+  const purchases=Math.max(orders.length,count("purchase"));
   const metric=(l,v,ic)=>`<div class="metric"><div class="m-label">${icon(ic)} ${l}</div><div class="m-val">${v}</div></div>`;
   return `${adminTop("Analytics")}
     <div class="metric-grid">
       ${metric("Prompt views",count("prompt_view"),"sparkles")}
-      ${metric("Prompt copies",count("prompt_copy"),"copy")}
-      ${metric("Checkout clicks",count("prompt_purchase_click")+count("pack_purchase_click"),"cart")}
-      ${metric("Custom requests",count("custom_request_submit"),"mail")}</div>
-    <div class="admin-card"><div class="admin-card-head"><h3>Conversion funnel</h3><span class="muted" style="font-size:.8rem">this browser</span></div>
-      ${(()=>{const vw=count("prompt_view"),cp=count("prompt_copy"),ck=count("prompt_purchase_click")+count("pack_purchase_click"),rq=count("custom_request_submit");
-        const stages=[["Prompt views",vw,"var(--blue)"],["Customized / copied",cp,"var(--blue-2)"],["Checkout clicks",ck,"#22c55e"],["Custom requests",rq,"#f59e0b"]];
-        const fmax=Math.max(1,vw,cp,ck,rq);
+      ${metric("Checkouts started",count("checkout_start"),"cart")}
+      ${metric("Purchases",purchases,"check")}
+      ${metric("Library copies",count("library_copy"),"copy")}</div>
+    <div class="admin-card"><div class="admin-card-head"><h3>Conversion funnel</h3><span class="muted" style="font-size:.8rem">${State.local?"this browser":"all visitors"}</span></div>
+      ${(()=>{const vw=count("prompt_view"),cs=count("checkout_start"),pu=purchases,cp=count("library_copy");
+        const stages=[["Prompt views",vw,"var(--blue)"],["Checkout started",cs,"var(--blue-2)"],["Purchased",pu,"#22c55e"],["Copied from Library",cp,"#f59e0b"]];
+        const fmax=Math.max(1,vw,cs,pu,cp);
         return `<div style="display:flex;flex-direction:column;gap:10px">${stages.map(([l,n,c])=>`<div style="display:flex;align-items:center;gap:12px">
           <span style="min-width:140px;font-size:.84rem;color:var(--muted)">${l}</span>
           <div style="flex:1;background:var(--line);border-radius:8px;height:26px;overflow:hidden"><div style="width:${Math.max(5,n/fmax*100)}%;height:100%;background:${c};border-radius:8px;display:flex;align-items:center;padding:0 10px;color:#fff;font-weight:700;font-size:.78rem">${n}</div></div>
           <span style="min-width:44px;text-align:right;font-size:.8rem;font-weight:700">${vw?Math.round(n/vw*100):0}%</span></div>`).join("")}</div>`;})()}</div>
     <div class="admin-card"><div class="admin-card-head"><h3>Top prompts by purchases</h3></div>
-      <div class="bar-chart">${prompts.map(p=>`<div class="bar" style="height:${Math.max(6,(p.purchaseCount||0)/maxPc*140)}px"><b>${p.purchaseCount||0}</b><span>${esc(p.title.split(" ").slice(0,2).join(" "))}</span></div>`).join("")}</div></div>
+      <div class="bar-chart">${prompts.map(p=>`<div class="bar" style="height:${Math.max(6,soldOf(p)/maxPc*140)}px"><b>${soldOf(p)}</b><span>${esc(p.title.split(" ").slice(0,2).join(" "))}</span></div>`).join("")}</div></div>
     <div class="admin-card"><div class="admin-card-head"><h3>Prompts by category</h3></div>
       <div class="bar-chart">${catCounts.map(c=>`<div class="bar" style="height:${Math.max(6,c.n/maxCat*140)}px;background:linear-gradient(180deg,var(--blue-2),var(--blue))"><b>${c.n}</b><span>${esc(c.name.split(" ")[0])}</span></div>`).join("")}</div></div>
     <div class="admin-card"><div class="admin-card-head"><h3>Activity heatmap</h3><span class="muted" style="font-size:.8rem">by day & hour</span></div>

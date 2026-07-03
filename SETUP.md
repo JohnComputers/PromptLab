@@ -52,7 +52,7 @@ Set `SQUARE_ENV=sandbox` on the function while testing (Firebase console → Fun
 Buyers **must create a free account (email + password) before they can purchase**, and every purchase is saved to that account — so they can log in on any device and their Library is there. This runs on the same **Email/Password** provider you already enabled in step 1; nothing extra to turn on. Admin is just the one special account (`admin@promptlab.app`); everyone else is a buyer.
 
 ## 4. Security rules
-Firestore → **Rules** → paste → **Publish.** This one block covers accounts, buyers' libraries, and admin — for the simple path.
+Firestore → **Rules** → paste → **Publish.** This one block covers accounts, buyers' libraries, orders, analytics events, and admin — for the simple path. **Re-publish these whenever you update the app** — the dashboard stats and pack delivery depend on the `orders` and `events` rules below.
 ```
 rules_version = '2';
 service cloud.firestore {
@@ -72,7 +72,12 @@ service cloud.firestore {
     // Each buyer owns exactly their own library document.
     match /libraries/{uid}     { allow read, write: if signedIn() && request.auth.uid == uid; }
 
-    match /orders/{id}         { allow read: if isAdmin();  allow write: if isAdmin(); }
+    // Buyers record their own order at delivery time; only you can read/manage them.
+    match /orders/{id}         { allow read: if isAdmin();  allow create: if signedIn(); allow update, delete: if isAdmin(); }
+
+    // Site analytics events (views, checkouts, purchases) — anyone can log, only you can read.
+    match /events/{id}         { allow create: if true;     allow read: if isAdmin(); allow update, delete: if false; }
+
     match /customRequests/{id} { allow read: if isAdmin();  allow create: if true; allow update, delete: if isAdmin(); }
   }
 }
