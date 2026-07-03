@@ -48,32 +48,43 @@ checkoutFunctionUrl: "https://us-central1-promptlab-d8302.cloudfunctions.net/cre
 ```
 Set `SQUARE_ENV=sandbox` on the function while testing (Firebase console → Functions → Variables); it defaults to production. Square sandbox test card: `4111 1111 1111 1111`, any future expiry / CVV / ZIP.
 
-## 4. Security rules
-Firestore → **Rules** → paste → **Publish.** Use the block that matches your path.
+## 3b. Buyer accounts
+Buyers **must create a free account (email + password) before they can purchase**, and every purchase is saved to that account — so they can log in on any device and their Library is there. This runs on the same **Email/Password** provider you already enabled in step 1; nothing extra to turn on. Admin is just the one special account (`admin@promptlab.app`); everyone else is a buyer.
 
-**Simple path** (buyers can read prompt text so it can be delivered after a Square‑link payment):
+## 4. Security rules
+Firestore → **Rules** → paste → **Publish.** This one block covers accounts, buyers' libraries, and admin — for the simple path.
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
-    function owner() { return request.auth != null; }      // shared admin = only login
-    match /prompts/{id}        { allow read: if true;  allow write: if owner(); }
-    match /packs/{id}          { allow read: if true;  allow write: if owner(); }
-    match /categories/{id}     { allow read: if true;  allow write: if owner(); }
-    match /siteConfig/{id}     { allow read: if true;  allow write: if owner(); }
-    match /promptContent/{id}  { allow read: if true;  allow write: if owner(); }  // needed for link-mode delivery
-    match /orders/{id}         { allow read: if owner(); allow write: if owner(); }
-    match /customRequests/{id} { allow read: if owner(); allow create: if true; allow update, delete: if owner(); }
+    function isAdmin()  { return request.auth != null && request.auth.token.email == 'admin@promptlab.app'; }
+    function signedIn() { return request.auth != null; }
+
+    match /prompts/{id}        { allow read: if true;       allow write: if isAdmin(); }
+    match /packs/{id}          { allow read: if true;       allow write: if isAdmin(); }
+    match /categories/{id}     { allow read: if true;       allow write: if isAdmin(); }
+    match /siteConfig/{id}     { allow read: if true;       allow write: if isAdmin(); }
+
+    // Full prompt text: only logged-in accounts can read it (needed to deliver a purchase);
+    // anonymous visitors cannot. The advanced path locks this down further (see below).
+    match /promptContent/{id}  { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    // Each buyer owns exactly their own library document.
+    match /libraries/{uid}     { allow read, write: if signedIn() && request.auth.uid == uid; }
+
+    match /orders/{id}         { allow read: if isAdmin();  allow write: if isAdmin(); }
+    match /customRequests/{id} { allow read: if isAdmin();  allow create: if true; allow update, delete: if isAdmin(); }
   }
 }
 ```
+> Uses your admin email (`admin@promptlab.app`) to tell the owner apart from buyers — **that's why buyers signing up doesn't make them admins.** If you changed `CONFIG.adminEmail`, change it in the rule too.
 
-**Advanced path** (content truly locked; only the function — via Admin SDK — reads it):
+**Advanced path** (Cloud Function): the function delivers content, so buyers never read it directly — lock it fully and let the function write orders:
 ```
-    match /promptContent/{id}  { allow read: if owner();  allow write: if owner(); }   // locked
-    match /orders/{id}         { allow read: if owner();  allow write: if false; }     // function writes orders
+    match /promptContent/{id}  { allow read: if isAdmin(); allow write: if isAdmin(); }  // truly locked
+    match /orders/{id}         { allow read: if isAdmin(); allow write: if false; }       // function writes via Admin SDK
 ```
-(Everything else identical to the block above.)
+(Everything else identical.)
 
 ## 5. Add your catalog
 Empty by default. In the dashboard: **Create prompt / pack / category**, or on an empty catalog the Overview offers **Import starter content** (sample prompts you can edit or delete).
@@ -87,7 +98,7 @@ Empty by default. In the dashboard: **Create prompt / pack / category**, or on a
 ## Content protection — how it works now
 - The product page shows **only** marketing: title, description, an **example output**, the customizable variable names, and a locked panel with word/variable counts. **The actual prompt template is never rendered before purchase** — there's no teaser to copy, so buying is the only way to get it.
 - The full prompt lives in a separate `promptContent` record; the public catalog carries none of it.
-- **Simple path:** content is delivered to the browser after the Square‑link payment, so the rules let it be read (a determined user could fetch it directly — but it's off the product page entirely).
+- **Simple path:** only **logged-in accounts** can read prompt text (to deliver a purchase) — anonymous visitors can't, and it's never on the product page. A determined *logged-in* user could still fetch content they didn't buy; the advanced path closes that.
 - **Advanced path:** content is locked in Firestore and released **only** in the function's post‑payment response. Truly unreadable until paid.
 
 ## Local preview (design only)

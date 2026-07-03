@@ -704,6 +704,19 @@ select:focus{outline:none;border-color:var(--blue)}
 .lp-stats{display:flex;flex-wrap:wrap;gap:8px}
 .lp-stats span{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 11px}
 .lp-stats svg{width:14px;height:14px;color:var(--blue-ink)}
+.auth-tabs{display:flex;gap:6px;background:var(--bg-2);padding:5px;border-radius:12px;margin:4px 0 18px}
+.auth-tab{flex:1;padding:9px;border:0;background:transparent;border-radius:9px;font-weight:650;font-size:.9rem;color:var(--muted);cursor:pointer;font-family:inherit}
+.auth-tab.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(8,18,38,.08)}
+.auth-err{background:rgba(220,38,38,.09);border:1px solid rgba(220,38,38,.25);border-radius:10px;padding:9px 12px;margin:2px 0 10px}
+.auth-err p{margin:0;color:var(--danger,#dc2626);font-size:.82rem;font-weight:600}
+.acct{position:relative}
+.acct-btn{width:36px;height:36px;border-radius:50%;border:0;background:linear-gradient(135deg,var(--blue),var(--blue-deep));color:#fff;font-weight:800;font-size:.92rem;cursor:pointer;display:grid;place-items:center;font-family:inherit}
+.acct-menu{position:absolute;right:0;top:46px;min-width:210px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 40px rgba(8,18,38,.16);padding:8px;z-index:60;animation:fadeIn .15s}
+.acct-menu.hide{display:none}
+.acct-email{font-size:.78rem;color:var(--muted);padding:8px 10px 6px;border-bottom:1px solid var(--line);margin-bottom:6px;word-break:break-all}
+.acct-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:9px 10px;border:0;background:transparent;border-radius:9px;font-size:.88rem;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;text-decoration:none}
+.acct-item:hover{background:var(--bg-2)}
+.acct-item svg{width:15px;height:15px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -1009,6 +1022,8 @@ const LocalDB=(()=>{
     getOrders(){return data.orders;},
     getPurchases(){return data.orders;},
     async getPromptContent(id){const c=data.promptContent[id];return c?clone(c):null;},
+    async fetchPromptFull(id){const p=data.prompts.find(x=>x.id===id);if(!p)return null;const c=data.promptContent[id]||{promptText:"",variableMeta:{}};return {...clone(p),promptText:c.promptText||"",variableMeta:c.variableMeta||{}};},
+    async fetchPackFull(id){const k=data.packs.find(x=>x.id===id);return k?clone(k):null;},
     ensureOrdersSub(){},
     async savePrompt(p){
       const id=p.id||uid("p");const hasText=typeof p.promptText==="string";
@@ -1089,6 +1104,10 @@ async function makeFirebaseDB(){
     // admin-only orders feed (rules block public reads); started after login
     ensureOrdersSub(){if(ordersUnsub)return;try{ordersUnsub=fs.onSnapshot(col("orders"),s=>{cache.orders=s.docs.map(d=>({id:d.id,...d.data()}));notify();});}catch(e){}},
     async getPromptContent(id){const d=await fs.getDoc(fs.doc(db,"promptContent",id));return d.exists()?d.data():null;},
+    async fetchPromptFull(id){const [a,b]=await Promise.all([fs.getDoc(fs.doc(db,"prompts",id)),fs.getDoc(fs.doc(db,"promptContent",id))]);if(!a.exists())return null;const p=a.data();const c=b.exists()?b.data():{promptText:"",variableMeta:{}};return {...p,id,promptText:c.promptText||"",variableMeta:c.variableMeta||{}};},
+    async fetchPackFull(id){const d=await fs.getDoc(fs.doc(db,"packs",id));return d.exists()?{...d.data(),id}:null;},
+    async getLibrary(uid){const d=await fs.getDoc(fs.doc(db,"libraries",uid));return d.exists()?d.data():null;},
+    async saveLibrary(uid,data){await fs.setDoc(fs.doc(db,"libraries",uid),data,{merge:true});return data;},
     async savePrompt(p){
       const id=p.id||uid("p");const hasText=typeof p.promptText==="string";
       const rec={...pub(p),id,updatedAt:Date.now()};
@@ -1129,19 +1148,74 @@ const Cart=(()=>{
   };
 })();
 /* ---------- LIBRARY (purchased content cached per-browser after delivery) ---------- */
-const Library=(()=>{
-  const K="pl_library";
-  const read=()=>Store.json(K,[]);
+/* ── ACCOUNTS ──────────────────────────────────────────────────────────
+   Buyers sign in with Firebase Auth (email/password). The single admin
+   account (CONFIG.adminEmail) is the owner; every other account is a buyer.
+   In the local ?preview sandbox, accounts are emulated in localStorage. */
+const Auth=(()=>{
+  let user=null,started=false,readyDone=false,resolveReady;
+  const readyP=new Promise(r=>resolveReady=r);
+  const subs=new Set();
+  const notify=()=>subs.forEach(f=>{try{f(user);}catch(e){}});
+  const markReady=()=>{if(!readyDone){readyDone=true;resolveReady();}};
+  const set=u=>{user=u;notify();};
+  const localUser=(email,name)=>({uid:"local_"+slug(email||("u"+Date.now())),email:(email||"").trim(),name:name||""});
   return {
-    items(){return read();},
-    has(id){return read().some(x=>x.id===id);},
-    get(id){return read().find(x=>x.id===id)||null;},
-    addDelivered(order,items){
-      const lib=read();
-      items.forEach(it=>{const i=lib.findIndex(x=>x.id===it.id);
-        const rec={...it,orderId:order.id,purchasedAt:order.createdAt||Date.now()};
-        if(i>=0)lib[i]=rec;else lib.unshift(rec);});
-      Store.setJson(K,lib);
+    current(){return user;},
+    isAdmin(){return !!user&&(user.email||"").toLowerCase()===(CONFIG.adminEmail||"").toLowerCase();},
+    ready(){return readyP;},
+    onChange(cb){subs.add(cb);return()=>subs.delete(cb);},
+    start(){
+      if(started)return;started=true;
+      if(!State.local&&State.db&&State.db._au&&State.db._auth){
+        try{State.db._au.onAuthStateChanged(State.db._auth,u=>{set(u?{uid:u.uid,email:u.email||"",name:u.displayName||""}:null);markReady();});}
+        catch(e){markReady();}
+      }else{set(Store.json("pl_user",null));markReady();}
+    },
+    async signUp(email,pass,name){
+      if(!State.local){
+        const cred=await State.db._au.createUserWithEmailAndPassword(State.db._auth,(email||"").trim(),pass);
+        if(name&&State.db._au.updateProfile){try{await State.db._au.updateProfile(cred.user,{displayName:name});}catch(e){}}
+        return cred.user;
+      }
+      const u=localUser(email,name);Store.setJson("pl_user",u);set(u);return u;
+    },
+    async signIn(email,pass){
+      if(!State.local){const cred=await State.db._au.signInWithEmailAndPassword(State.db._auth,(email||"").trim(),pass);return cred.user;}
+      const u=localUser(email);Store.setJson("pl_user",u);set(u);return u;
+    },
+    async signOut(){
+      if(!State.local){try{await State.db._au.signOut(State.db._auth);}catch(e){}}
+      else{Store.del("pl_user");set(null);}
+    }
+  };
+})();
+/* Per-account Library. Firebase: a libraries/{uid} document (syncs across
+   devices). Local sandbox: localStorage keyed by the emulated uid. */
+const Library=(()=>{
+  let cache=[]; const subs=new Set();
+  const notify=()=>subs.forEach(f=>{try{f();}catch(e){}});
+  const key=()=>{const u=Auth.current();return "pl_lib_"+(u?u.uid:"anon");};
+  return {
+    items(){return cache;},
+    has(id){return cache.some(x=>x.id===id);},
+    get(id){return cache.find(x=>x.id===id)||null;},
+    onChange(cb){subs.add(cb);return()=>subs.delete(cb);},
+    async reload(){
+      const u=Auth.current();
+      if(!u){cache=[];notify();return cache;}
+      if(!State.local){try{const d=await State.db.getLibrary(u.uid);cache=(d&&Array.isArray(d.items))?d.items:[];}catch(e){cache=[];}}
+      else{cache=Store.json(key(),[]);}
+      notify();return cache;
+    },
+    async addDelivered(order,items){
+      const u=Auth.current();if(!u)return;
+      const map=new Map(cache.map(x=>[x.id,x]));
+      (items||[]).forEach(it=>{map.set(it.id,{...it,orderId:order.id,purchasedAt:order.createdAt||Date.now()});});
+      cache=[...map.values()].sort((a,b)=>(b.purchasedAt||0)-(a.purchasedAt||0));
+      if(!State.local){try{await State.db.saveLibrary(u.uid,{items:cache,updatedAt:Date.now()});}catch(e){}}
+      else{Store.setJson(key(),cache);}
+      notify();
     }
   };
 })();
@@ -1167,6 +1241,73 @@ function openModal(html,wide){
   body.className="modal"+(wide?" wide":"");body.innerHTML=html;root.classList.add("open");document.body.style.overflow="hidden";
 }
 function closeModal(){$("#modal-root").classList.remove("open");document.body.style.overflow="";$("#modal-body").innerHTML="";}
+
+/* ── Buyer auth modal (create account / log in) ── */
+function authErrMsg(e,m){
+  const c=((e&&(e.code||e.message))||"").toString();
+  if(/email-already-in-use/.test(c))return "That email already has an account — try logging in instead.";
+  if(/invalid-email/.test(c))return "That doesn't look like a valid email address.";
+  if(/weak-password/.test(c))return "Password is too weak — use at least 6 characters.";
+  if(/wrong-password|invalid-credential|user-not-found|invalid-login/.test(c))return "Wrong email or password.";
+  if(/too-many-requests/.test(c))return "Too many attempts — please wait a moment and try again.";
+  if(/network/.test(c))return "Network error — check your connection and try again.";
+  return "Something went wrong. Please try again.";
+}
+function openAuthModal(mode,after){
+  mode=mode||"signup";
+  openModal(`<div class="modal-head"><h2 id="authTitle" style="margin:0">Create your account</h2>
+    <button class="icon-btn" data-close aria-label="Close">${icon("close")}</button></div>
+    <div class="auth-tabs"><button class="auth-tab" data-am="signup">Create account</button><button class="auth-tab" data-am="login">Log in</button></div>
+    <div id="authForm"></div>`);
+  const draw=m=>{
+    $("#authTitle").textContent=m==="signup"?"Create your account":"Welcome back";
+    $$(".auth-tab").forEach(t=>t.classList.toggle("active",t.dataset.am===m));
+    $("#authForm").innerHTML=`
+      ${m==="signup"?`<div class="form-field"><label>Name</label><input id="au_name" placeholder="Your name" autocomplete="name"></div>`:""}
+      <div class="form-field"><label>Email</label><input id="au_email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+      <div class="form-field"><label>Password</label><input id="au_pass" type="password" placeholder="${m==="signup"?"At least 6 characters":"Your password"}" autocomplete="${m==="signup"?"new-password":"current-password"}"></div>
+      <div class="auth-err hide" id="au_err"><p></p></div>
+      <button class="btn btn-primary btn-block btn-lg" id="au_go" style="margin-top:4px">${m==="signup"?"Create account":"Log in"}</button>
+      <p class="muted center" style="font-size:.8rem;margin:12px 0 0">${m==="signup"?"Already have an account? ":"New to PromptLab? "}<a href="#" id="au_swap" style="color:var(--blue-ink);font-weight:600">${m==="signup"?"Log in":"Create one"}</a></p>
+      <p class="muted center" style="font-size:.72rem;margin:8px 0 0">Your purchases save to your account so you can reach them on any device.</p>`;
+    const go=$("#au_go"),err=$("#au_err");
+    const fail=msg=>{err.querySelector("p").textContent=msg;err.classList.remove("hide");};
+    $("#au_swap").onclick=e=>{e.preventDefault();draw(m==="signup"?"login":"signup");};
+    $("#au_email").addEventListener("keydown",e=>{if(e.key==="Enter")go.click();});
+    $("#au_pass").addEventListener("keydown",e=>{if(e.key==="Enter")go.click();});
+    go.onclick=async()=>{
+      const email=($("#au_email").value||"").trim(),pass=$("#au_pass").value,name=(($("#au_name")||{}).value||"").trim();
+      err.classList.add("hide");
+      if(!email||!pass){fail("Enter your email and password.");return;}
+      if(m==="signup"&&pass.length<6){fail("Password must be at least 6 characters.");return;}
+      go.disabled=true;go.textContent="Please wait…";
+      try{
+        if(m==="signup")await Auth.signUp(email,pass,name);else await Auth.signIn(email,pass);
+        await Auth.ready();
+        closeModal();toast(m==="signup"?"Account created — you're all set.":"Welcome back.","success");
+        if(typeof after==="function")after();
+      }catch(e){go.disabled=false;go.textContent=m==="signup"?"Create account":"Log in";fail(authErrMsg(e,m));}
+    };
+  };
+  $$(".auth-tab").forEach(t=>t.onclick=()=>draw(t.dataset.am));
+  draw(mode);
+}
+function renderNavAccount(){
+  const el=$("#navAccount");if(!el)return;
+  const u=Auth.current();
+  if(!u){el.innerHTML=`<button class="btn btn-secondary btn-sm" id="loginBtn">Log in</button>`;
+    const b=$("#loginBtn");if(b)b.onclick=()=>openAuthModal("login");return;}
+  const initial=((u.name||u.email||"?").trim()[0]||"?").toUpperCase();
+  el.innerHTML=`<div class="acct"><button class="acct-btn" id="acctBtn" title="${esc(u.email)}" aria-label="Account">${esc(initial)}</button>
+    <div class="acct-menu hide" id="acctMenu">
+      <div class="acct-email">${esc(u.email)}</div>
+      <a href="#/library" class="acct-item">${icon("rocket")} My Library</a>
+      ${Auth.isAdmin()?`<a href="#/admin" class="acct-item">${icon("box")} Dashboard</a>`:""}
+      <button class="acct-item" id="acctLogout">${icon("close")} Log out</button></div></div>`;
+  const btn=$("#acctBtn"),menu=$("#acctMenu");
+  btn.onclick=e=>{e.stopPropagation();menu.classList.toggle("hide");};
+  $("#acctLogout").onclick=async()=>{menu.classList.add("hide");await Auth.signOut();toast("Logged out.","info");if((State.route||"").match(/^(library|checkout|account)/))location.hash="#/";};
+}
 
 function applyTheme(t){document.documentElement.setAttribute("data-theme",t);State.theme=t;Store.set("pl_theme",t);
   const m=$('meta[name=theme-color]');if(m)m.content=t==="dark"?"#0D1117":"#4DA3FF";
@@ -1220,6 +1361,7 @@ function buildShell(){
     <div class="nav-actions">
       <button class="icon-btn" id="searchBtn" title="Search prompts" aria-label="Search">${icon("search")}</button>
       <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle dark mode">${icon(State.theme==="dark"?"sun":"moon")}</button>
+      <span id="navAccount"></span>
       <a class="btn btn-primary btn-sm" href="#/browse">Get Started</a>
       <button class="icon-btn hamburger" id="hamburger" aria-label="Menu">${icon("menu")}</button>
     </div></div></header>
@@ -1242,6 +1384,7 @@ function buildShell(){
   window.addEventListener("scroll",onScroll);onScroll();
   $("#modal-root").addEventListener("click",e=>{if(e.target.hasAttribute("data-close"))closeModal();});
   document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeDr();}});
+  renderNavAccount();
   initAdminAccess();
 }
 function refreshCartBadge(){const n=Cart.count();const el=$("#cartCount");if(el){el.textContent=n;el.style.display=n>0?"flex":"none";}}
@@ -1289,6 +1432,7 @@ function addToCart(id,type){
   return ok;
 }
 document.addEventListener("click",e=>{
+  const am=$("#acctMenu");if(am&&!am.classList.contains("hide")&&!e.target.closest(".acct"))am.classList.add("hide");
   const add=e.target.closest("[data-add]"),addPack=e.target.closest("[data-addpack]"),
         buynow=e.target.closest("[data-buynow]"),buynowPack=e.target.closest("[data-buynowpack]"),
         prev=e.target.closest("[data-preview]"),go=e.target.closest("[data-go]");
@@ -2037,7 +2181,7 @@ async function completeOrder(items,buyer,sourceId,btn){
   try{
     const res=await processCheckout(items,buyer,sourceId);
     if(!res||!res.order)throw new Error("No confirmation returned.");
-    Library.addDelivered(res.order,res.items||[]);
+    await Library.addDelivered(res.order,res.items||[]);
     try{sessionStorage.setItem("pl_last_order",JSON.stringify({order:res.order,items:(res.items||[]).map(i=>({id:i.id,title:i.title,type:i.type}))}));}catch(e){}
     track("purchase",{amount:res.order.amount,items:(res.items||[]).length});
     Cart.clear();location.hash="#/success";
@@ -2080,9 +2224,15 @@ function mountCheckout(items,subtotal,item){
   if(link){
     area.innerHTML=`<button class="btn btn-primary btn-block btn-lg" id="payBtn">${icon("cart")} Pay with Square — ${money(subtotal)}</button>
       <p class="muted center" style="font-size:.74rem;margin:8px 0 0">You'll pay securely on Square, then come right back here and your prompt unlocks automatically.</p>`;
-    $("#payBtn").onclick=()=>{
-      const buyer=getBuyer();
-      try{sessionStorage.setItem("pl_pending_cart",JSON.stringify({cart:items,buyer,amount:subtotal,ts:Date.now()}));}catch(e){}
+    $("#payBtn").onclick=async()=>{
+      const btn=$("#payBtn");btn.disabled=true;btn.innerHTML=`${icon("bolt")} Preparing…`;
+      const buyer={email:getBuyer().email||((Auth.current()||{}).email)||""};
+      // Fetch the full purchase NOW (while the page + session are live), stash it,
+      // then redirect. On return we just persist it — no dependency on a fresh reload.
+      try{
+        const delivery=await buildDelivery(items,buyer);
+        sessionStorage.setItem("pl_pending_delivery",JSON.stringify(delivery));
+      }catch(e){try{sessionStorage.setItem("pl_pending_delivery",JSON.stringify({order:{id:uid("ord"),lines:[],email:buyer.email,amount:subtotal,status:"paid",mode:"square-link",createdAt:Date.now()},items:[],cart:items}));}catch(_){}}
       track("checkout_redirect",{amount:subtotal,items:items.length});
       window.location.href=link;
     };return;
@@ -2165,6 +2315,14 @@ function renderCheckout(type,id){
         <div class="secure" style="margin-top:12px">${secureNote()}</div>
       </aside>
     </div></div>`);
+  const acct=Auth.current();
+  const em=$("#buyerEmail");if(em&&acct&&acct.email)em.value=acct.email;
+  if(!acct){
+    $("#checkoutArea").innerHTML=`<div class="admin-banner" style="margin-top:2px">${icon("lock")} Create a free account (or log in) to buy — your prompt saves to your account so you can reach it on any device.</div>
+      <button class="btn btn-primary btn-block btn-lg" id="ckLogin" style="margin-top:10px">Create account / Log in</button>`;
+    const b=$("#ckLogin");if(b)b.onclick=()=>openAuthModal("signup",()=>router());
+    return;
+  }
   mountCheckout([{id:it.id,type}],price,it);
 }
 function defaultsOf(meta){return Object.fromEntries(Object.entries(meta||{}).filter(([k,m])=>m&&m.default).map(([k,m])=>[k,m.default]));}
@@ -2180,8 +2338,19 @@ function libCard(it,i){
     <div class="viewer" style="margin-top:14px"><div class="viewer-head"><span class="vh-title">${icon("sparkles")} Your prompt</span></div>
       <div class="viewer-body" id="lv-view-${i}">${highlightPrompt(it.promptText,defaultsOf(meta))}</div></div></div>`;
 }
-function renderLibrary(){
+async function renderLibrary(){
   setPageMeta("Your Library — PromptLab");
+  if(!Auth.current()){
+    view(`<section class="section"><div class="container"><div class="success-wrap">
+      <div class="success-ico" style="background:rgba(77,163,255,.12);color:var(--blue-ink)">${icon("lock")}</div>
+      <h1 style="font-size:2rem">Log in to see your Library</h1>
+      <p class="lead" style="margin:14px auto 22px">Your purchased prompts live in your account. Log in (or create one) to open them.</p>
+      <div class="hero-cta" style="justify-content:center"><button class="btn btn-primary btn-lg" id="libLogin">Log in / Create account</button>
+        <a class="btn btn-secondary btn-lg" href="#/browse">Browse prompts</a></div>
+    </div></div></section>`);
+    const b=$("#libLogin");if(b)b.onclick=()=>openAuthModal("login",()=>router());return;
+  }
+  await Library.reload();
   const items=Library.items();
   if(!items.length){
     view(`<section class="section"><div class="container"><div class="success-wrap">
@@ -2192,9 +2361,9 @@ function renderLibrary(){
     </div></div></section>`);return;
   }
   view(`<div class="container" style="padding:32px 0"><h1>Your Library</h1>
-    <p class="muted" style="margin-bottom:24px">${items.length} purchased item${items.length===1?"":"s"} · saved on this device</p>
+    <p class="muted" style="margin-bottom:24px">${items.length} purchased item${items.length===1?"":"s"} · saved to your account${State.local?" (local preview)":""}</p>
     <div class="lib-list">${items.map((it,i)=>libCard(it,i)).join("")}</div>
-    <p class="muted mt-l" style="font-size:.82rem">${icon("lock")} Saved to this browser. Cross-device access needs an account — coming soon.</p>
+    <p class="muted mt-l" style="font-size:.82rem">${icon("check")} Saved to your account — sign in on any device to access these.</p>
   </div></div>`);
   items.forEach((it,i)=>{
     const v=$("#lv-view-"+i);const inputs=$$(`.lv-input[data-li="${i}"]`);
@@ -2217,21 +2386,35 @@ async function renderSuccess(q){
       <div class="hero-cta" style="justify-content:center"><a class="btn btn-primary btn-lg" href="#/browse">Browse prompts</a>
         <a class="btn btn-secondary btn-lg" href="#/">Back home</a></div></div></div></section>`);return;
   }
-  // SIMPLE Square-link mode: the buyer just paid on Square and came back — deliver now.
-  let pending=null;try{pending=JSON.parse(sessionStorage.getItem("pl_pending_cart")||"null");}catch(e){}
-  if(pending&&pending.cart&&pending.cart.length){
+  // SIMPLE Square-link mode: buyer paid on Square and returned — persist to their account now.
+  let pending=null;try{pending=JSON.parse(sessionStorage.getItem("pl_pending_delivery")||"null");}catch(e){}
+  if(pending&&pending.order){
     view(`<section class="section"><div class="container"><div class="success-wrap">
       <div class="success-ico">${icon("bolt")}</div>
-      <h1 style="font-size:clamp(1.7rem,3.2vw,2.3rem)">Unlocking your prompts…</h1>
-      <p class="lead" style="margin:14px auto 0">One moment while we add your purchase to your Library.</p></div></div></section>`);
-    try{
-      const {order,items}=await buildDelivery(pending.cart,pending.buyer);
-      Library.addDelivered(order,items);
-      try{sessionStorage.setItem("pl_last_order",JSON.stringify({order,items:items.map(i=>({id:i.id,title:i.title,type:i.type}))}));}catch(e){}
-      track("purchase",{amount:order.amount,items:items.length,mode:"square-link"});
-      Cart.clear();
-    }catch(e){}
-    try{sessionStorage.removeItem("pl_pending_cart");}catch(e){}
+      <h1 style="font-size:clamp(1.7rem,3.2vw,2.3rem)">Unlocking your purchase…</h1>
+      <p class="lead" style="margin:14px auto 0">One moment while we save this to your account.</p></div></div></section>`);
+    await Auth.ready();
+    if(Auth.current()){
+      // If content wasn't captured pre-redirect (rare), rebuild it now that we're back.
+      if((!pending.items||!pending.items.length)&&pending.cart&&pending.cart.length){
+        try{const rebuilt=await buildDelivery(pending.cart,pending.order.email?{email:pending.order.email}:{});pending.items=rebuilt.items;pending.order.lines=rebuilt.order.lines;pending.order.amount=pending.order.amount||rebuilt.order.amount;}catch(e){}
+      }
+      try{
+        await Library.addDelivered(pending.order,pending.items||[]);
+        try{sessionStorage.setItem("pl_last_order",JSON.stringify({order:pending.order,items:(pending.items||[]).map(i=>({id:i.id,title:i.title,type:i.type}))}));}catch(e){}
+        track("purchase",{amount:pending.order.amount,items:(pending.items||[]).length,mode:"square-link"});
+      }catch(e){}
+      try{sessionStorage.removeItem("pl_pending_delivery");}catch(e){}
+    }else{
+      // Not logged in on return (session lost). Let them log in to claim — delivery stays pending.
+      view(`<section class="section"><div class="container"><div class="success-wrap">
+        <div class="success-ico" style="background:rgba(77,163,255,.12);color:var(--blue-ink)">${icon("lock")}</div>
+        <h1 style="font-size:clamp(1.6rem,3vw,2.1rem)">Log in to unlock your purchase</h1>
+        <p class="lead" style="margin:14px auto 22px">You're back from Square. Log into the account you bought with and your prompt will drop into your Library.</p>
+        <button class="btn btn-primary btn-lg" id="claimLogin">Log in to claim</button></div></div></section>`);
+      const b=$("#claimLogin");if(b)b.onclick=()=>openAuthModal("login",()=>renderSuccess(new URLSearchParams()));
+      return;
+    }
   }
   let last=null;try{last=JSON.parse(sessionStorage.getItem("pl_last_order")||"null");}catch(e){}
   const order=last&&last.order;const items=(last&&last.items)||[];
@@ -2905,6 +3088,16 @@ function renderSetup(){
   $("#enterPreview").onclick=()=>{try{sessionStorage.setItem("pl_preview","1");}catch(e){}startApp();};
 }
 async function startApp(){
+  Auth.onChange(()=>{
+    State.user=Auth.current();
+    if(!State.local)State.admin=Auth.isAdmin()?{name:"Owner",role:"owner",email:(State.user||{}).email,loginAt:Date.now()}:null;
+    Library.reload().then(()=>{
+      renderNavAccount();
+      const r=State.route||"";
+      if(r.indexOf("checkout")===0||r==="library")router();
+    });
+  });
+  Auth.start();
   buildShell();
   if(!location.hash)location.hash="#/";
   router();
