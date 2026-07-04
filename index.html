@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>PromptLab — Professional AI Prompts That Deliver Instant Results</title>
+<title>Prompt Vault — Professional AI Prompts That Deliver Instant Results</title>
 <meta name="description" content="Premium, professionally engineered AI prompts for marketing, business, coding, content and more. Tested prompt packs and single prompts for ChatGPT, Claude, Gemini and beyond." />
 <meta name="theme-color" content="#4DA3FF" />
 <meta name="color-scheme" content="light dark" />
 
 <!-- Open Graph / social -->
 <meta property="og:type" content="website" />
-<meta property="og:title" content="PromptLab — Professional AI Prompts That Deliver Instant Results" />
+<meta property="og:title" content="Prompt Vault — Professional AI Prompts That Deliver Instant Results" />
 <meta property="og:description" content="Save hours of trial and error with expertly engineered prompts for marketing, business, coding, content creation, and more." />
-<meta property="og:site_name" content="PromptLab" />
+<meta property="og:site_name" content="Prompt Vault" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="PromptLab — Professional AI Prompts" />
+<meta name="twitter:title" content="Prompt Vault — Professional AI Prompts" />
 <meta name="twitter:description" content="Premium, tested AI prompt packs and single prompts." />
 
 <!-- Favicon (inline) -->
@@ -22,7 +22,7 @@
 
 <!-- Structured data -->
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"Organization","name":"PromptLab","description":"Premium marketplace for professionally engineered AI prompts.","url":"https://promptlab.example","sameAs":[]}
+{"@context":"https://schema.org","@type":"Organization","name":"Prompt Vault","description":"Premium marketplace for professionally engineered AI prompts.","url":"https://promptlab.example","sameAs":[]}
 </script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -791,6 +791,10 @@ const FIREBASE_ENABLED = !!(CONFIG.firebase.apiKey && CONFIG.firebase.apiKey!=="
 /* back-compat alias */
 CONFIG.localPassword=CONFIG.adminPassword;
 try{window.PROMPTLAB_CONFIG=CONFIG;}catch(e){}
+/* Footer / contact phone number — FIXED and permanent. The admin panel cannot
+   change it; the site always shows this value. To use a different number, edit
+   it here (this is the only place it comes from). */
+const DEFAULT_PHONE="+1 (305) 555-0142";
 
 /* -------------------------- ICONS -------------------------- */
 const I={
@@ -966,11 +970,11 @@ const SEED_CONFIG={
   ],
   socialLinks:{instagram:"https://instagram.com",tiktok:"https://tiktok.com",youtube:"https://youtube.com",twitter:"https://x.com"},
   testimonials:[
-    {name:"Maria S.",role:"Marketing Agency Owner",rating:5,quote:"PromptLab cut our campaign drafting time in half. The ad prompts alone paid for themselves in a week."},
+    {name:"Maria S.",role:"Marketing Agency Owner",rating:5,quote:"Prompt Vault cut our campaign drafting time in half. The ad prompts alone paid for themselves in a week."},
     {name:"Devon K.",role:"Indie Developer",rating:5,quote:"The code review prompt is shockingly good. It catches things my linter misses every single time."},
     {name:"Priya R.",role:"Content Creator",rating:5,quote:"I went from staring at a blank screen to a full month of content in one afternoon. Game changer."},
     {name:"Tom B.",role:"Startup Founder",rating:5,quote:"We use the cold email sequence for all outbound. Reply rates jumped from 2% to 11%."},
-    {name:"Lena M.",role:"Freelance Copywriter",rating:5,quote:"Clients think I have a team. Really it's just PromptLab and a good cup of coffee."},
+    {name:"Lena M.",role:"Freelance Copywriter",rating:5,quote:"Clients think I have a team. Really it's just Prompt Vault and a good cup of coffee."},
     {name:"Carlos V.",role:"E-commerce Manager",rating:5,quote:"Product descriptions that actually convert. Our PDP conversion rate is up 23% since switching."}
   ],
   faq:[
@@ -978,19 +982,19 @@ const SEED_CONFIG={
     {q:"How do I use the prompts?",a:"Open any prompt, fill in the variable fields (like your business name and audience), copy the finished prompt, and paste it into your AI tool of choice. That's it — no setup, no accounts required to copy."},
     {q:"Which AI models are the prompts compatible with?",a:"Every prompt is tested to work across ChatGPT, Claude, and Gemini. Each prompt lists its verified compatible models so you always know what to expect."},
     {q:"Can I request a custom prompt?",a:"Yes. Head to the Custom Prompts page and tell us your use case. We design bespoke, high-performance prompts tailored to your exact workflow, business, or creative goal."},
-    {q:"Is this a subscription?",a:"No. PromptLab is pay-as-you-go. Buy a single prompt or a pack once and it's yours. Subscriptions and memberships may arrive later, but you'll never be auto-charged without opting in."},
+    {q:"Is this a subscription?",a:"No. Prompt Vault is pay-as-you-go. Buy a single prompt or a pack once and it's yours. Subscriptions and memberships may arrive later, but you'll never be auto-charged without opting in."},
     {q:"Do prompts ever get updated?",a:"Yes — prompts are continuously refined as AI models evolve. When a prompt you own is improved, the latest version is always the one you'll see."},
     {q:"What's your refund policy?",a:"Because prompts are digital and delivered instantly, sales are generally final once accessed. We make exceptions for duplicate purchases, technical delivery failures, or verified billing errors — just contact us."}
   ],
   legal:{
-    privacy:"## Overview\nThis Privacy Policy explains what information PromptLab collects, how it is used, and the choices you have. By using PromptLab you agree to the practices described here.\n\n## Information We Collect\n- Email address (when you purchase or submit a custom request)\n- Usage analytics (page views, prompt interactions)\n- Device and browser metadata\n- Purchase history\n- Custom prompt request details\n\n## How We Use Your Information\nWe use collected data to process purchases, deliver digital products, provide customer support, and improve the experience. We do not sell your personal data.\n\n## Data Storage & Security\nData is stored securely with our infrastructure provider and access is restricted to authorized administrators. We do not store full payment card details — payments are handled by our payment provider.\n\n## Third-Party Services\nWe rely on trusted third parties including our hosting provider, analytics provider, and payment processor (Square). Each handles data under its own privacy policy.\n\n## Your Rights\nYou may request access to, correction of, or deletion of your data at any time by emailing us. We respond to verified requests promptly.\n\n_This document is a template and not legal advice. Have it reviewed by a qualified professional before launch._",
-    terms:"## Agreement\nThese Terms of Service govern your use of PromptLab. By accessing the site or purchasing products, you agree to these terms.\n\n## What We Provide\nPromptLab sells digital AI prompt templates intended for educational, business, and productivity purposes.\n\n## Acceptable Use\nYou agree not to resell or publicly redistribute prompts or packs, reverse engineer platform systems, attempt unauthorized access, or abuse the custom request system.\n\n## Digital Products\nAll products are non-physical digital goods delivered electronically. Because access is immediate, products are generally non-refundable once accessed, subject to the Refund Policy.\n\n## Intellectual Property\nPromptLab retains rights to prompt structures, pack organization, and platform design. You receive a license to use purchased prompts, not ownership of the underlying templates.\n\n## Limitation of Liability\nPromptLab is not responsible for variations in AI output quality, third-party AI platform behavior, misuse of prompts, or business outcomes resulting from prompt usage.\n\n_This document is a template and not legal advice._",
-    cookies:"## How We Use Cookies & Local Storage\nPromptLab uses cookies and local storage to remember your theme preference, keep lightweight session state, store recently viewed prompts, and power analytics.\n\n## Your Control\nYou can clear your browser storage at any time or disable tracking cookies in your browser settings. Some convenience features may be limited if you do.\n\n_This document is a template and not legal advice._",
+    privacy:"## Overview\nThis Privacy Policy explains what information Prompt Vault collects, how it is used, and the choices you have. By using Prompt Vault you agree to the practices described here.\n\n## Information We Collect\n- Email address (when you purchase or submit a custom request)\n- Usage analytics (page views, prompt interactions)\n- Device and browser metadata\n- Purchase history\n- Custom prompt request details\n\n## How We Use Your Information\nWe use collected data to process purchases, deliver digital products, provide customer support, and improve the experience. We do not sell your personal data.\n\n## Data Storage & Security\nData is stored securely with our infrastructure provider and access is restricted to authorized administrators. We do not store full payment card details — payments are handled by our payment provider.\n\n## Third-Party Services\nWe rely on trusted third parties including our hosting provider, analytics provider, and payment processor (Square). Each handles data under its own privacy policy.\n\n## Your Rights\nYou may request access to, correction of, or deletion of your data at any time by emailing us. We respond to verified requests promptly.\n\n_This document is a template and not legal advice. Have it reviewed by a qualified professional before launch._",
+    terms:"## Agreement\nThese Terms of Service govern your use of Prompt Vault. By accessing the site or purchasing products, you agree to these terms.\n\n## What We Provide\nPrompt Vault sells digital AI prompt templates intended for educational, business, and productivity purposes.\n\n## Acceptable Use\nYou agree not to resell or publicly redistribute prompts or packs, reverse engineer platform systems, attempt unauthorized access, or abuse the custom request system.\n\n## Digital Products\nAll products are non-physical digital goods delivered electronically. Because access is immediate, products are generally non-refundable once accessed, subject to the Refund Policy.\n\n## Intellectual Property\nPrompt Vault retains rights to prompt structures, pack organization, and platform design. You receive a license to use purchased prompts, not ownership of the underlying templates.\n\n## Limitation of Liability\nPrompt Vault is not responsible for variations in AI output quality, third-party AI platform behavior, misuse of prompts, or business outcomes resulting from prompt usage.\n\n_This document is a template and not legal advice._",
+    cookies:"## How We Use Cookies & Local Storage\nPrompt Vault uses cookies and local storage to remember your theme preference, keep lightweight session state, store recently viewed prompts, and power analytics.\n\n## Your Control\nYou can clear your browser storage at any time or disable tracking cookies in your browser settings. Some convenience features may be limited if you do.\n\n_This document is a template and not legal advice._",
     refunds:"## Digital Goods\nBecause our products are digital and delivered instantly, sales are generally final once a product has been accessed.\n\n## Exceptions\nWe will issue a refund for duplicate purchases, technical delivery failures, or verified billing errors.\n\n## Custom Prompts\nRefunds for custom prompt requests are evaluated case by case. Partial refunds may apply depending on the stage of work completed.\n\n## How to Request\nEmail us with your order details and we'll make it right.\n\n_This document is a template and not legal advice._",
-    dmca:"## Copyright Compliance\nPromptLab respects intellectual property rights and responds to valid takedown notices.\n\n## Filing a Notice\nSubmit DMCA takedown requests to our business email with the allegedly infringing material, your contact information, and a good-faith statement.\n\n## Our Process\nUpon a valid request we review the content, temporarily disable the prompt if warranted, investigate, and remove content permanently if necessary.\n\n_This document is a template and not legal advice._",
+    dmca:"## Copyright Compliance\nPrompt Vault respects intellectual property rights and responds to valid takedown notices.\n\n## Filing a Notice\nSubmit DMCA takedown requests to our business email with the allegedly infringing material, your contact information, and a good-faith statement.\n\n## Our Process\nUpon a valid request we review the content, temporarily disable the prompt if warranted, investigate, and remove content permanently if necessary.\n\n_This document is a template and not legal advice._",
     "acceptable-use":"## Prohibited Conduct\nYou must not use prompts for illegal activity, attempt to exploit platform vulnerabilities, spam the custom request system, scrape or bulk-extract content, or interfere with platform services.\n\n## Enforcement\nViolations may result in suspended access and, where appropriate, referral to authorities.\n\n_This document is a template and not legal advice._",
-    disclaimer:"## AI Content Notice\nPromptLab provides prompts designed for AI systems. We do not guarantee the accuracy of AI outputs, business success outcomes, legal compliance of AI-generated content, or the stability of external AI platforms.\n\nYou are responsible for reviewing and validating any output before use.\n\n_This document is a template and not legal advice._",
-    accessibility:"## Our Commitment\nPromptLab aims to meet modern accessibility standards, including keyboard navigation, screen reader compatibility, high color contrast, responsive scaling, and reduced-motion support.\n\n## Feedback\nIf you encounter an accessibility barrier, email us and we'll work to resolve it.\n\n_This document is a template and not legal advice._"
+    disclaimer:"## AI Content Notice\nPrompt Vault provides prompts designed for AI systems. We do not guarantee the accuracy of AI outputs, business success outcomes, legal compliance of AI-generated content, or the stability of external AI platforms.\n\nYou are responsible for reviewing and validating any output before use.\n\n_This document is a template and not legal advice._",
+    accessibility:"## Our Commitment\nPrompt Vault aims to meet modern accessibility standards, including keyboard navigation, screen reader compatibility, high color contrast, responsive scaling, and reduced-motion support.\n\n## Feedback\nIf you encounter an accessibility barrier, email us and we'll work to resolve it.\n\n_This document is a template and not legal advice._"
   }
 };
 
@@ -1278,7 +1282,7 @@ function openAuthModal(mode,after){
       <div class="form-field"><label>Password</label><input id="au_pass" type="password" placeholder="${m==="signup"?"At least 6 characters":"Your password"}" autocomplete="${m==="signup"?"new-password":"current-password"}"></div>
       <div class="auth-err hide" id="au_err"><p></p></div>
       <button class="btn btn-primary btn-block btn-lg" id="au_go" style="margin-top:4px">${m==="signup"?"Create account":"Log in"}</button>
-      <p class="muted center" style="font-size:.8rem;margin:12px 0 0">${m==="signup"?"Already have an account? ":"New to PromptLab? "}<a href="#" id="au_swap" style="color:var(--blue-ink);font-weight:600">${m==="signup"?"Log in":"Create one"}</a></p>
+      <p class="muted center" style="font-size:.8rem;margin:12px 0 0">${m==="signup"?"Already have an account? ":"New to Prompt Vault? "}<a href="#" id="au_swap" style="color:var(--blue-ink);font-weight:600">${m==="signup"?"Log in":"Create one"}</a></p>
       <p class="muted center" style="font-size:.72rem;margin:8px 0 0">Your purchases save to your account so you can reach them on any device.</p>`;
     const go=$("#au_go"),err=$("#au_err");
     const fail=msg=>{err.querySelector("p").textContent=msg;err.classList.remove("hide");};
@@ -1349,16 +1353,16 @@ function renderFooter(){
   const legal=[["Privacy Policy","privacy"],["Terms of Service","terms"],["Cookies","cookies"],["Refunds","refunds"],["DMCA","dmca"],["Accessibility","accessibility"]];
   return `<footer class="footer"><div class="container">
     <div class="footer-top">
-      <div class="footer-brand"><a class="brand" href="#/"><span class="logo">${icon("sparkles")}</span>PromptLab</a>
+      <div class="footer-brand"><a class="brand" href="#/"><span class="logo">${icon("sparkles")}</span>Prompt Vault</a>
         <p>Premium, professionally engineered AI prompts that save you hours and deliver reliable results across every major AI platform.</p>
         <div class="socials">${soc}</div></div>
       <div class="footer-col"><h4>Company</h4><a href="#/about">About</a><a href="#/contact">Contact</a><a href="#/faq">FAQ</a><a href="#/pricing">Pricing</a><a href="#/browse">Browse</a></div>
       <div class="footer-col"><h4>Legal</h4>${legal.map(([t,k])=>`<a href="#/legal/${k}">${t}</a>`).join("")}</div>
       <div class="footer-col"><h4>Get in touch</h4>
         <a href="mailto:${esc(c.businessEmail)}">${esc(c.businessEmail)}</a>
-        <a href="tel:${esc((c.phoneNumber||"").replace(/[^+\d]/g,""))}">${esc(c.phoneNumber)}</a>
+        <a href="tel:${esc(DEFAULT_PHONE.replace(/[^+\d]/g,""))}">${esc(DEFAULT_PHONE)}</a>
         <a href="#/custom">Request a custom prompt</a></div></div>
-    <div class="footer-bottom"><span>© ${y} PromptLab. All rights reserved.</span>
+    <div class="footer-bottom"><span>© ${y} Prompt Vault. All rights reserved.</span>
       <span class="ver-tag">v1.0 · build ${(Date.now()+"").slice(-6)} · ${Store.persistent?"local":"session"} mode</span></div>
   </div></footer>`;
 }
@@ -1366,7 +1370,7 @@ function buildShell(){
   const app=$("#app");
   app.innerHTML=`${renderBanner()}
   <header class="nav" id="nav"><div class="container nav-inner">
-    <a class="brand" href="#/" aria-label="PromptLab home"><span class="logo" id="brandLogo">${icon("sparkles")}</span>PromptLab</a>
+    <a class="brand" href="#/" aria-label="Prompt Vault home"><span class="logo" id="brandLogo">${icon("sparkles")}</span>Prompt Vault</a>
     <nav class="nav-links" id="navLinks">${navLinks()}</nav>
     <div class="nav-actions">
       <button class="icon-btn" id="searchBtn" title="Search prompts" aria-label="Search">${icon("search")}</button>
@@ -1379,7 +1383,7 @@ function buildShell(){
   ${renderFooter()}
   <div class="drawer-backdrop" id="drawerBg"></div>
   <aside class="drawer" id="drawer">
-    <div class="drawer-head"><a class="brand" href="#/"><span class="logo">${icon("sparkles")}</span>PromptLab</a>
+    <div class="drawer-head"><a class="brand" href="#/"><span class="logo">${icon("sparkles")}</span>Prompt Vault</a>
       <button class="icon-btn" id="drawerClose" aria-label="Close">${icon("close")}</button></div>
     <nav id="drawerLinks">${navLinks()}</nav>
     <a class="btn btn-primary btn-block mt-m" href="#/browse">Get Started</a></aside>`;
@@ -1529,7 +1533,7 @@ function setJsonLd(obj){
   if(!s){s=document.createElement("script");s.type="application/ld+json";s.id="dynamic-ld";document.head.appendChild(s);}
   s.textContent=JSON.stringify(obj);
 }
-const DEFAULT_TITLE="PromptLab — Premium AI Prompt Marketplace";
+const DEFAULT_TITLE="Prompt Vault — Premium AI Prompt Marketplace";
 const DEFAULT_DESC="Buy professionally engineered AI prompts and prompt packs, or request a custom prompt. Tested on ChatGPT, Claude, Gemini and more.";
 function setPageMeta(title,desc){
   document.title=title||DEFAULT_TITLE;
@@ -1539,7 +1543,7 @@ function setPageMeta(title,desc){
 }
 const SITE_URL=()=>location.origin+location.pathname;
 function ldProduct(p){return{"@context":"https://schema.org","@type":"Product",name:p.title,description:p.description||p.title,
-  category:catName(p.categoryId),brand:{"@type":"Brand",name:"PromptLab"},
+  category:catName(p.categoryId),brand:{"@type":"Brand",name:"Prompt Vault"},
   offers:{"@type":"Offer",price:(p.price||0).toFixed(2),priceCurrency:"USD",availability:"https://schema.org/InStock",url:SITE_URL()+"#/prompt/"+p.id}};}
 function ldItemList(items,kind){return{"@context":"https://schema.org","@type":"ItemList",numberOfItems:items.length,
   itemListElement:items.slice(0,20).map((it,i)=>({"@type":"ListItem",position:i+1,url:SITE_URL()+"#/"+kind+"/"+it.id,name:it.title}))};}
@@ -1643,7 +1647,7 @@ function renderHome(){
 
   <section class="section"><div class="container"><div class="final-cta reveal">
     <h2>Start using better prompts today.</h2>
-    <p class="lead">Join the creators, founders, and teams shipping faster with PromptLab.</p>
+    <p class="lead">Join the creators, founders, and teams shipping faster with Prompt Vault.</p>
     <div class="hero-cta"><a class="btn btn-primary btn-lg" href="#/browse">Browse Prompts</a>
       <a class="btn btn-secondary btn-lg" href="#/pricing">View Pricing</a>
       <a class="btn btn-secondary btn-lg" href="#/custom">Request Custom Prompt</a></div></div></div></section>`);
@@ -1764,7 +1768,7 @@ function renderBrowse(preset){
   $("#applySheet").onclick=closeSheet;$("#sheetBg").onclick=closeSheet;
   setJsonLd(ldItemList(State.db.getPrompts().filter(p=>p.status==="active"),"prompt"));
   if(preset&&preset.cat){const cObj=allCats().find(c=>c.id===preset.cat);
-    if(cObj)setPageMeta(cObj.seoTitle||`${cObj.name} prompts — PromptLab`,cObj.seoDescription||cObj.description);}
+    if(cObj)setPageMeta(cObj.seoTitle||`${cObj.name} prompts — Prompt Vault`,cObj.seoDescription||cObj.description);}
   applyBrowse();
 }
 function browseFilterHandler(e){
@@ -1881,8 +1885,10 @@ function renderPacks(){
 }
 
 /* ========================= VIEW: PACK DETAIL ========================= */
-function renderPack(id){
-  const pk=packById(id);
+function loaderView(){view(`<section class="section"><div class="container" style="text-align:center;padding:90px 0"><p class="muted">Loading…</p></div></section>`);}
+async function renderPack(id){
+  let pk=packById(id);
+  if(!pk&&State.db.fetchPackFull){loaderView();pk=await State.db.fetchPackFull(id);if(State.route!=="pack/"+id&&(State.route||"").indexOf("pack/"+id)!==0)return;}
   if(!pk){renderNotFound("That pack is no longer available.");return;}
   const included=(pk.promptIds||[]).map(promptById).filter(Boolean);
   const indivTotal=included.reduce((s,p)=>s+(p.price||0),0);
@@ -1945,11 +1951,12 @@ function checkoutLink(item,type){try{
   if(type==="prompt"&&sq.promptCheckoutUrl&&sq.promptCheckoutUrl.trim())return sq.promptCheckoutUrl.trim();
   return ((sq.defaultCheckoutUrl)||CONFIG.square.checkoutUrl||"").trim();
 }catch(e){return ((item&&item.checkoutUrl)||CONFIG.square.checkoutUrl||"").trim();}}
-function renderPrompt(id){
-  const p=promptById(id);
+async function renderPrompt(id){
+  let p=promptById(id);
+  if(!p&&State.db.fetchPromptFull){loaderView();p=await State.db.fetchPromptFull(id);if((State.route||"").indexOf("prompt/"+id)!==0)return;}
   if(!p){renderNotFound("That prompt is no longer available.");return;}
   track("prompt_view",{id:p.id});
-  setJsonLd(ldProduct(p));setPageMeta(`${p.title} — PromptLab`,p.description);
+  setJsonLd(ldProduct(p));setPageMeta(`${p.title} — Prompt Vault`,p.description);
   const vars=p.variables||[];
   const owned=Library.has(p.id);
   const related=relatedPrompts(p);
@@ -2061,7 +2068,7 @@ function renderPricing(){
   view(`<div class="container"><div class="crumbs"><a href="#/">Home</a><span class="sep">/</span><span class="cur">Pricing</span></div></div>
   <section class="section"><div class="container">
     <div class="section-head"><span class="eyebrow">Simple &amp; transparent</span><h1 style="font-size:clamp(1.9rem,3.6vw,2.6rem)">Pricing</h1>
-      <p class="lead reveal">No subscriptions. No hidden fees. Buy what you need and own it. All prices are set by the PromptLab team and can change anytime.</p></div>
+      <p class="lead reveal">No subscriptions. No hidden fees. Buy what you need and own it. All prices are set by the Prompt Vault team and can change anytime.</p></div>
     <div class="tiers">
       <div class="tier reveal"><h3>Single Prompt</h3><div class="t-amt">${money(c.pricingDefaults.prompt)}</div>
         <p class="muted">For a specific task or a quick win.</p>
@@ -2089,10 +2096,10 @@ function renderAbout(){
   view(`<div class="container"><div class="crumbs"><a href="#/">Home</a><span class="sep">/</span><span class="cur">About</span></div></div>
   <section class="section"><div class="container prose">
     <span class="eyebrow">Our story</span>
-    <h1 style="font-size:clamp(1.9rem,3.6vw,2.6rem);margin:10px 0 18px">Why PromptLab exists</h1>
+    <h1 style="font-size:clamp(1.9rem,3.6vw,2.6rem);margin:10px 0 18px">Why Prompt Vault exists</h1>
     <p class="lead">Great AI output starts with a great prompt. We were tired of watching people waste hours wrestling with vague instructions and inconsistent results — so we built a place where every prompt is engineered, tested, and ready to deliver.</p>
     <h2>Our mission</h2><p>To make professional-grade prompt engineering accessible to everyone — from solo creators to growing teams — so anyone can get reliable, high-quality results from AI without the trial and error.</p>
-    <h2>Our vision</h2><p>A world where the best AI workflows aren't locked inside a few experts' heads. PromptLab is building the trusted marketplace for prompts, packs, and custom AI tooling that scales with you.</p>
+    <h2>Our vision</h2><p>A world where the best AI workflows aren't locked inside a few experts' heads. Prompt Vault is building the trusted marketplace for prompts, packs, and custom AI tooling that scales with you.</p>
     <h2>What we value</h2>
     <ul><li><b>Quality over quantity.</b> Every prompt is tested before it ships.</li>
       <li><b>Clarity.</b> Transparent pricing, plain language, no dark patterns.</li>
@@ -2100,7 +2107,7 @@ function renderAbout(){
       <li><b>Continuous improvement.</b> We refine prompts as the models evolve.</li></ul>
     ${owners.length?`<h2>The team</h2><div class="owners" style="margin:8px 0">${owners.map(o=>`<div class="owner"><span class="o-av">${initials(o.name)}</span>
       <div><h3>${esc(o.name)}</h3><div class="o-role">${esc(o.role)}</div><a class="o-mail" href="mailto:${esc(o.email)}">${esc(o.email)}</a></div></div>`).join("")}</div>`:""}
-    <h2>Get in touch</h2><p>Questions, partnerships, or feedback? Email us at <a href="mailto:${esc(c.businessEmail)}">${esc(c.businessEmail)}</a> or call ${esc(c.phoneNumber)}. We're around ${esc(c.businessHours)}.</p>
+    <h2>Get in touch</h2><p>Questions, partnerships, or feedback? Email us at <a href="mailto:${esc(c.businessEmail)}">${esc(c.businessEmail)}</a> or call ${esc(DEFAULT_PHONE)}. We're around ${esc(c.businessHours)}.</p>
     <div class="hero-cta" style="margin-top:24px"><a class="btn btn-primary btn-lg" href="#/browse">Browse prompts</a><a class="btn btn-secondary btn-lg" href="#/custom">Request a custom prompt</a></div>
   </div></section>`);
 }
@@ -2137,7 +2144,7 @@ function renderContact(){
     <div class="contact-grid">
       <div class="contact-info">
         <div class="ci-item"><span class="ci-ico">${icon("mail")}</span><div><h4>Email</h4><p><a href="mailto:${esc(c.businessEmail)}" style="color:var(--blue-ink)">${esc(c.businessEmail)}</a></p></div></div>
-        <div class="ci-item"><span class="ci-ico">${icon("phone")}</span><div><h4>Phone</h4><p>${esc(c.phoneNumber)}</p></div></div>
+        <div class="ci-item"><span class="ci-ico">${icon("phone")}</span><div><h4>Phone</h4><p>${esc(DEFAULT_PHONE)}</p></div></div>
         <div class="ci-item"><span class="ci-ico">${icon("clock")}</span><div><h4>Business hours</h4><p>${esc(c.businessHours)}</p></div></div>
         <div class="ci-item"><span class="ci-ico">${icon("share")}</span><div><h4>Follow us</h4><div class="socials" style="margin-top:8px">${soc}</div></div></div>
       </div>
@@ -2151,7 +2158,7 @@ function renderContact(){
   $("#kSend").onclick=()=>{
     const n=$("#kName").value.trim(),em=$("#kEmail").value.trim(),m=$("#kMsg").value.trim();
     if(!n||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)||m.length<3){toast("Please fill in all fields with a valid email.","error");return;}
-    const subject=encodeURIComponent(`PromptLab enquiry from ${n}`);
+    const subject=encodeURIComponent(`Prompt Vault enquiry from ${n}`);
     const body=encodeURIComponent(m+"\n\n— "+n+" ("+em+")");
     window.location.href=`mailto:${c.businessEmail}?subject=${subject}&body=${body}`;
     toast("Opening your email app…","info");
@@ -2272,7 +2279,7 @@ function mountCheckout(items,subtotal,item){
    back on later — re-add the nav cart button + "Add to cart" buttons and this
    page + the #/cart route light up again. Not linked anywhere right now. */
 function renderCart(){
-  setPageMeta("Your cart — PromptLab");
+  setPageMeta("Your cart — Prompt Vault");
   const rows=Cart.items().map(ci=>{
     if(ci.type==="pack"){const pk=packById(ci.id);return pk?{id:ci.id,type:"pack",title:pk.title,price:pk.price||0,sub:`${(pk.promptIds||[]).length} prompts included`}:null;}
     const p=promptById(ci.id);return p?{id:ci.id,type:"prompt",title:p.title,price:p.price||0,sub:catName(p.categoryId)}:null;
@@ -2309,14 +2316,19 @@ function renderCart(){
   mountCheckout(Cart.items(),subtotal);
 }
 /* ── BUY NOW: single-item checkout ─────────────────────────────────── */
-function renderCheckout(type,id){
+async function renderCheckout(type,id){
   const isPack=type==="pack";
-  const it=isPack?packById(id):promptById(id);
+  let it=isPack?packById(id):promptById(id);
+  if(!it){ // not in the cache yet (fresh load / deep link / return from Square) — fetch it
+    loaderView();
+    it=isPack?(State.db.fetchPackFull&&await State.db.fetchPackFull(id)):(State.db.fetchPromptFull&&await State.db.fetchPromptFull(id));
+    if((State.route||"").indexOf("checkout/")!==0)return;
+  }
   if(!it){renderNotFound();return;}
   if(Library.has(it.id)){location.hash="#/library";return;}   // already owned → Library
   const price=it.price||0;
   const sub=isPack?`${(it.promptIds||[]).length} prompts included`:catName(it.categoryId);
-  setPageMeta("Checkout — "+it.title+" — PromptLab");
+  setPageMeta("Checkout — "+it.title+" — Prompt Vault");
   view(`<div class="container" style="padding:32px 0;max-width:820px">
     <a class="btn btn-secondary btn-sm" href="#/${type}/${id}">${icon("arrow")} Back</a>
     <h1 style="margin:14px 0 4px">Checkout</h1>
@@ -2365,7 +2377,7 @@ function libCard(it,i){
       <div class="viewer-body" id="lv-view-${i}">${highlightPrompt(it.promptText,defaultsOf(meta))}</div></div></div>`;
 }
 async function renderLibrary(){
-  setPageMeta("Your Library — PromptLab");
+  setPageMeta("Your Library — Prompt Vault");
   if(!Auth.current()){
     view(`<section class="section"><div class="container"><div class="success-wrap">
       <div class="success-ico" style="background:rgba(77,163,255,.12);color:var(--blue-ink)">${icon("lock")}</div>
@@ -2884,7 +2896,7 @@ function openCatEditor(c){
     <div class="form-field"><label>Icon</label><div class="row wrap" id="c_icons" style="gap:8px">
       ${ICON_CHOICES.map(ic=>`<button class="icon-btn c-ic ${c.icon===ic?"":""}" data-ic="${ic}" style="${c.icon===ic?"border-color:var(--blue);color:var(--blue-ink)":""}">${icon(ic)}</button>`).join("")}</div></div>
     <div style="border-top:1px solid var(--line);margin:18px 0 8px;padding-top:14px;font-weight:700;font-size:.85rem;color:var(--muted)">${icon("search")} SEO metadata</div>
-    <div class="form-field"><label>SEO title <span class="muted">(browser tab + search results)</span></label><input id="c_seoTitle" value="${esc(c.seoTitle||"")}" placeholder="${esc(c.name||"Category")} prompts — PromptLab"></div>
+    <div class="form-field"><label>SEO title <span class="muted">(browser tab + search results)</span></label><input id="c_seoTitle" value="${esc(c.seoTitle||"")}" placeholder="${esc(c.name||"Category")} prompts — Prompt Vault"></div>
     <div class="form-field"><label>Meta description <span class="muted">(~155 chars)</span></label><textarea id="c_seoDesc" maxlength="200" style="min-height:60px" placeholder="Short search-friendly description of this category…">${esc(c.seoDescription||"")}</textarea></div>
     <div class="row" style="margin-top:18px;gap:10px"><button class="btn btn-secondary btn-block" data-close>Cancel</button>
       <button class="btn btn-primary btn-block" id="c_save">${icon("check")} Save category</button></div>`);
@@ -2946,7 +2958,7 @@ function adminConfig(){
   return `${adminTop("Site Config",`<button class="btn btn-primary btn-sm" id="cfgSave">${icon("check")} Save changes</button>`)}
     <div class="admin-card"><div class="admin-card-head"><h3>Business details</h3></div>
       <div class="form-row"><div class="form-field"><label>Business email</label><input id="cf_email" value="${esc(c.businessEmail)}"></div>
-        <div class="form-field"><label>Phone number</label><input id="cf_phone" value="${esc(c.phoneNumber)}"></div></div>
+        <div class="form-field"><label>Phone number <span class="muted">(fixed)</span></label><input value="${esc(DEFAULT_PHONE)}" disabled title="The phone number is fixed in code and can't be changed here."></div></div>
       <div class="form-row"><div class="form-field"><label>Business hours</label><input id="cf_hours" value="${esc(c.businessHours)}"></div>
         <div class="form-field"><label>Response time</label><input id="cf_resp" value="${esc(c.responseTime)}"></div></div>
       <div class="form-field"><label>Announcement banner <span class="muted">(blank = hidden)</span></label><input id="cf_banner" value="${esc(c.announcementBanner||"")}" placeholder="🎉 Launch week — new packs added"></div></div>
@@ -2997,7 +3009,7 @@ function wireConfig(){
 }
 async function saveConfigForm(){
   const c=clone(cfg());
-  c.businessEmail=$("#cf_email").value.trim();c.phoneNumber=$("#cf_phone").value.trim();
+  c.businessEmail=$("#cf_email").value.trim();c.phoneNumber=DEFAULT_PHONE;
   c.businessHours=$("#cf_hours").value.trim();c.responseTime=$("#cf_resp").value.trim();
   c.announcementBanner=$("#cf_banner").value.trim();
   c.square={promptCheckoutUrl:$("#cf_sq_prompt").value.trim(),packCheckoutUrl:$("#cf_sq_pack").value.trim(),defaultCheckoutUrl:(cfg().square&&cfg().square.defaultCheckoutUrl)||""};
@@ -3115,9 +3127,9 @@ function renderSetup(){
   const app=$("#app")||document.body;
   const cfgLine=Object.values({}).length; // noop
   app.innerHTML=`<div class="setup-wrap"><div class="setup-card">
-    <div class="setup-logo"><span class="logo">${icon("sparkles")}</span> PromptLab</div>
+    <div class="setup-logo"><span class="logo">${icon("sparkles")}</span> Prompt Vault</div>
     <h1>Connect your backend to go live</h1>
-    <p class="setup-lead">PromptLab is built for production. A live marketplace needs one shared database every visitor reads from, so the store stays hidden until you connect <b>Firebase</b>. It takes about five minutes.</p>
+    <p class="setup-lead">Prompt Vault is built for production. A live marketplace needs one shared database every visitor reads from, so the store stays hidden until you connect <b>Firebase</b>. It takes about five minutes.</p>
     <ol class="setup-steps">
       <li><b>Create a Firebase project</b> at console.firebase.google.com, then add a <b>Web app</b> and copy its config object.</li>
       <li><b>Enable Cloud Firestore</b> and <b>Authentication → Email/Password</b>.</li>

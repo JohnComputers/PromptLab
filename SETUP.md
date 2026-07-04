@@ -1,4 +1,4 @@
-# PromptLab — Setup
+# Prompt Vault — Setup
 
 A single‑file AI prompt marketplace: cart, Square checkout, content‑protected prompts, and a "My Library." Your Firebase keys are already pasted in — so out of the box the app boots straight to the store. There are two things left: turn on payments, and (optionally) lock the content down server‑side.
 
