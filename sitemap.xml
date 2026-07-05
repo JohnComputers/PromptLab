@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Replace USERNAME/REPO with your GitHub Pages path or custom domain.
-     PromptLab is a hash-routed SPA, so the root URL serves every view. -->
+<!-- Prompt Vault sitemap. Hash routes (#/…) are one URL to search engines,
+     so the root is the indexable page; all storefront content is reachable
+     from it and rendered for crawlers via the pre-rendered snapshot + JS. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://USERNAME.github.io/REPO/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://USERNAME.github.io/REPO/#/browse</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
-  <url><loc>https://USERNAME.github.io/REPO/#/categories</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://USERNAME.github.io/REPO/#/packs</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
-  <url><loc>https://USERNAME.github.io/REPO/#/pricing</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://USERNAME.github.io/REPO/#/custom</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://USERNAME.github.io/REPO/#/about</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://USERNAME.github.io/REPO/#/faq</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://USERNAME.github.io/REPO/#/contact</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url>
+    <loc>https://USERNAME.github.io/REPO/</loc>
+    <lastmod>2026-07-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
 </urlset>

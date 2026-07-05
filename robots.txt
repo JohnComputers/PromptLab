@@ -1,5 +1,5 @@
+# Prompt Vault — robots
 User-agent: *
 Allow: /
 
-# Replace with your live domain
 Sitemap: https://USERNAME.github.io/REPO/sitemap.xml

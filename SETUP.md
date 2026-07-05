@@ -94,8 +94,20 @@ service cloud.firestore {
 ## 5. Add your catalog
 Empty by default. In the dashboard: **Create prompt / pack / category**, or on an empty catalog the Overview offers **Import starter content** (sample prompts you can edit or delete).
 
+## 5b. SEO — get found on Google
+The app ships with a full SEO layer: optimized title/description, canonical + robots meta, Open Graph/Twitter cards, Organization + WebSite (sitelinks search) + OnlineStore schema, per-page Product/FAQ/Breadcrumb schema, a crawlable pre-rendered homepage snapshot (so Google's first pass sees real content, not a spinner), and a social share image.
+
+**Go-live checklist (10 min):**
+1. **Replace `USERNAME.github.io/REPO`** with your real URL in three files: the `<head>` of `index.html` (canonical, og:url, og:image, twitter:image, and the JSON-LD block), `sitemap.xml`, and `robots.txt`. Find-and-replace handles it.
+2. **Upload `og-image.png`** to the repo root (next to index.html) — it's the branded 1200×630 image used when your site is shared on social/iMessage/Discord.
+3. In the dashboard → **Site Config → SEO**, set the **Site URL** (and optionally override the meta title/description/social image). This drives canonicals and schema URLs at runtime.
+4. **Google Search Console** (search.google.com/search-console): add your site (URL-prefix), verify via the HTML-tag method (paste their meta tag into `index.html`'s head), then **submit `sitemap.xml`** and use **URL Inspection → Request indexing** on your root URL.
+5. Optional: Bing Webmaster Tools (imports from Search Console in one click).
+
+**Honest expectations:** this is a hash-router single-page app, so search engines index it as **one URL** — the homepage. Everything on it (schema, pre-rendered content, keywords) is tuned to rank that page for prompt-marketplace terms, and Google *does* execute the JS. But individual prompt pages (`#/prompt/...`) can't rank as separate results; that would require real paths + pre-rendered pages (a static-site build or SSR), which is beyond a single-file GitHub Pages app. Rankings also depend on competition and backlinks — no tool can promise "first page." What moves the needle most after this setup: real content in your catalog (unique titles/descriptions per prompt), and links to your site from anywhere reputable.
+
 ## 6. Go live (GitHub Pages)
-1. Put `index.html`, `sitemap.xml`, `robots.txt` in a repo → **Settings → Pages → main / root.**
+1. Put `index.html`, `og-image.png`, `sitemap.xml`, `robots.txt` in a repo → **Settings → Pages → main / root.**
 2. Replace `USERNAME/REPO` in `sitemap.xml`, `robots.txt`, and in your Square link's redirect URL.
 
 ---
